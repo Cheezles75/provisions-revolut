@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Provisions Revolut — Calculateur</title>
+
+<!-- Police douce et lisible, chargée depuis Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Bibliothèque Google Identity Services, pour le bouton "Se connecter avec Google" -->
+<script src="https://accounts.google.com/gsi/client" async defer onload="initialiserConnexionGoogle()"></script>
+
+<style>
+  /* ==========================================================================
+     VARIABLES DE DESIGN — palette douce (bleus/verts pastel), coins arrondis
+     ========================================================================== */
+  :root {
+    --bg-debut: #eef3fb;
+    --bg-fin: #e7eefb;
+    --surface: #ffffff;
+    --surface-douce: #f6f9fd;
+    --texte: #2c3548;
+    --texte-attenue: #6b7488;
+    --bordure: #e3e9f3;
+    --primaire: #5b8def;
+    --primaire-sombre: #4472c4;
+    --accent: #6fc3a0;
+    --accent-fonce: #4ea883;
+    --avertissement: #dfa15c;
+    --danger: #d97a7a;
+    --ombre: 0 6px 20px rgba(63, 87, 130, 0.09);
+    --ombre-legere: 0 2px 8px rgba(63, 87, 130, 0.06);
+    --rayon: 18px;
+    --rayon-petit: 12px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--texte);
+    background: linear-gradient(160deg, var(--bg-debut), var(--bg-fin));
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3 { margin: 0; font-weight: 800; }
+  p { margin: 0; }
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ==========================================================================
+     ÉCRAN DE CONNEXION
+     ========================================================================== */
+  #ecran-connexion {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .carte-connexion {
+    background: var(--surface);
+    border-radius: var(--rayon);
+    box-shadow: var(--ombre);
+    padding: 48px 40px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .carte-connexion .logo {
+    font-size: 44px;
+    margin-bottom: 8px;
+  }
+
+  .carte-connexion h1 {
+    font-size: 24px;
+    color: var(--texte);
+    margin-bottom: 8px;
+  }
+
+  .carte-connexion .sous-titre {
+    color: var(--texte-attenue);
+    font-size: 15px;
+    line-height: 1.5;
+    margin-bottom: 28px;
+  }
+
+  #bouton-google {
+    display: flex;
+    justify-content: center;
+  }
+
+  /* ==========================================================================
+     STRUCTURE GÉNÉRALE DE L'APPLI
+     ========================================================================== */
+  #app {
+    display: none;
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 20px 20px 60px;
+  }
+
+  header.entete {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 4px 20px;
+  }
+
+  .entete .titre-appli {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .entete .titre-appli span.emoji { font-size: 28px; }
+
+  .entete h1 { font-size: 21px; }
+
+  .profil-utilisateur {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 6px 14px 6px 6px;
+    box-shadow: var(--ombre-legere);
+  }
+
+  .profil-utilisateur img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+  }
+
+  .profil-utilisateur .nom {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .bouton-icone {
+    background: none;
+    border: none;
+    color: var(--texte-attenue);
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    border-radius: 50%;
+    transition: background 0.15s, color 0.15s;
+  }
+  .bouton-icone:hover { background: var(--surface-douce); color: var(--danger); }
+
+  /* Navigation par onglets */
+  nav.onglets {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 22px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  nav.onglets button {
+    border: none;
+    background: var(--surface);
+    color: var(--texte-attenue);
+    font-weight: 700;
+    font-size: 14.5px;
+    padding: 10px 20px;
+    border-radius: 999px;
+    box-shadow: var(--ombre-legere);
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+
+  nav.onglets button.actif {
+    background: var(--primaire);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(91, 141, 239, 0.35);
+  }
+
+  .panneau { display: none; }
+  .panneau.actif { display: block; }
+
+  /* ==========================================================================
+     BANDEAU D'ERREUR / MESSAGES
+     ========================================================================== */
+  #bandeau-erreur {
+    display: none;
+    background: #fdf1ef;
+    border: 1px solid #f2cfc9;
+    color: #a5453a;
+    border-radius: var(--rayon-petit);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  #bandeau-erreur.visible { display: flex; }
+
+  #bandeau-erreur button {
+    background: #a5453a;
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--accent-fonce);
+    color: #fff;
+    padding: 14px 20px;
+    border-radius: var(--rayon-petit);
+    box-shadow: var(--ombre);
+    font-weight: 700;
+    font-size: 14px;
+    transform: translateY(120%);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 100;
+  }
+  #toast.visible { transform: translateY(0); opacity: 1; }
+
+  /* ==========================================================================
+     TABLEAU DE BORD
+     ========================================================================== */
+  .grille-tableau-bord {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .carte {
+    background: var(--surface);
+    border-radius: var(--rayon);
+    box-shadow: var(--ombre-legere);
+    padding: 26px;
+  }
+
+  .carte-hero {
+    background: linear-gradient(135deg, var(--primaire), var(--primaire-sombre));
+    color: #fff;
+  }
+
+  .carte-hero .etiquette {
+    font-size: 14px;
+    opacity: 0.85;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .carte-hero .montant {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .carte-hero .detail-secondaire {
+    margin-top: 14px;
+    font-size: 13.5px;
+    opacity: 0.9;
+  }
+
+  .carte-stat .etiquette {
+    color: var(--texte-attenue);
+    font-size: 13.5px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .carte-stat .valeur {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--texte);
+  }
+
+  .carte-stat .valeur.accent { color: var(--accent-fonce); }
+
+  .repartition-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .chip-categorie {
+    background: var(--surface-douce);
+    border: 1px solid var(--bordure);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--texte);
+    display: flex;
+    gap: 6px;
+  }
+  .chip-categorie span.montant-chip { color: var(--primaire-sombre); }
+
+  /* ==========================================================================
+     TABLEAUX (détail provisions + gestion des prélèvements)
+     ========================================================================== */
+  .conteneur-tableau {
+    background: var(--surface);
+    border-radius: var(--rayon);
+    box-shadow: var(--ombre-legere);
+    overflow: hidden;
+  }
+
+  .conteneur-tableau .entete-carte {
+    padding: 20px 26px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .scroll-horizontal { overflow-x: auto; padding: 16px 10px 6px; }
+
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+
+  thead th {
+    text-align: left;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--texte-attenue);
+    padding: 10px 16px;
+    border-bottom: 2px solid var(--surface-douce);
+  }
+
+  tbody td {
+    padding: 13px 16px;
+    font-size: 14.5px;
+    border-bottom: 1px solid var(--surface-douce);
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.ligne-inactive { opacity: 0.5; }
+
+  .badge-mode {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge-mode.classique { background: #e8f3ff; color: var(--primaire-sombre); }
+  .badge-mode.echeance_connue { background: #fdefe0; color: var(--avertissement); }
+
+  .actions-ligne { display: flex; gap: 6px; }
+
+  .bouton-mini {
+    border: none;
+    background: var(--surface-douce);
+    border-radius: 9px;
+    padding: 7px;
+    display: flex;
+    color: var(--texte-attenue);
+    transition: all 0.15s;
+  }
+  .bouton-mini:hover { background: var(--primaire); color: #fff; }
+  .bouton-mini.danger:hover { background: var(--danger); color: #fff; }
+  .bouton-mini.accent:hover { background: var(--accent-fonce); color: #fff; }
+
+  .etat-vide {
+    text-align: center;
+    color: var(--texte-attenue);
+    padding: 50px 20px;
+    font-size: 15px;
+  }
+
+  /* Barre d'outils de la gestion des prélèvements */
+  .barre-outils {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 20px 26px 0;
+  }
+
+  .bouton-principal {
+    background: var(--primaire);
+    color: #fff;
+    border: none;
+    padding: 11px 20px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(91, 141, 239, 0.3);
+    transition: transform 0.1s;
+  }
+  .bouton-principal:hover { transform: translateY(-1px); }
+
+  .case-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--texte-attenue);
+    font-weight: 700;
+  }
+
+  /* ==========================================================================
+     MODALE (ajout / modification d'un prélèvement)
+     ========================================================================== */
+  .fond-modale {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(44, 53, 72, 0.45);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .fond-modale.visible { display: flex; }
+
+  .modale {
+    background: var(--surface);
+    border-radius: var(--rayon);
+    box-shadow: var(--ombre);
+    max-width: 560px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 30px 30px 24px;
+  }
+
+  .modale h2 { font-size: 19px; margin-bottom: 22px; }
+
+  .segmented {
+    display: flex;
+    background: var(--surface-douce);
+    border-radius: 999px;
+    padding: 4px;
+    margin-bottom: 22px;
+  }
+
+  .segmented button {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 9px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--texte-attenue);
+    transition: all 0.15s;
+  }
+
+  .segmented button.actif {
+    background: var(--primaire);
+    color: #fff;
+  }
+
+  .champ { margin-bottom: 16px; }
+
+  .champ label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--texte-attenue);
+    margin-bottom: 6px;
+  }
+
+  .champ input, .champ select, .champ textarea {
+    width: 100%;
+    padding: 11px 13px;
+    border-radius: var(--rayon-petit);
+    border: 1.5px solid var(--bordure);
+    font-family: inherit;
+    font-size: 14.5px;
+    color: var(--texte);
+    background: var(--surface-douce);
+  }
+
+  .champ input:focus, .champ select:focus, .champ textarea:focus {
+    outline: none;
+    border-color: var(--primaire);
+    background: #fff;
+  }
+
+  .champ .aide {
+    font-size: 12.5px;
+    color: var(--texte-attenue);
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+
+  .ligne-deux-champs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .actions-modale {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  .bouton-secondaire {
+    background: var(--surface-douce);
+    color: var(--texte-attenue);
+    border: none;
+    padding: 11px 20px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 14.5px;
+  }
+
+  /* ==========================================================================
+     RESPONSIVE
+     ========================================================================== */
+  @media (max-width: 900px) {
+    .grille-tableau-bord { grid-template-columns: 1fr; }
+    .ligne-deux-champs { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 560px) {
+    .carte-connexion { padding: 36px 24px; }
+    .entete { flex-direction: column; align-items: flex-start; }
+    .carte-hero .montant { font-size: 34px; }
+    .barre-outils { flex-direction: column; align-items: stretch; }
+    .bouton-principal { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================================
+     ÉCRAN DE CONNEXION — affiché tant que Charles ne s'est pas identifié
+     ============================================================================ -->
+<div id="ecran-connexion">
+  <div class="carte-connexion">
+    <div class="logo">💧</div>
+    <h1>Provisions Revolut</h1>
+    <p class="sous-titre">Calcule combien virer chaque mois sur ton vault "Provisions" pour ne jamais être pris de court par un prélèvement.</p>
+    <div id="bouton-google"></div>
+  </div>
+</div>
+
+<!-- ============================================================================
+     APPLICATION PRINCIPALE — affichée après connexion réussie
+     ============================================================================ -->
+<div id="app">
+
+  <header class="entete">
+    <div class="titre-appli">
+      <span class="emoji">💧</span>
+      <h1>Provisions Revolut</h1>
+    </div>
+    <div class="profil-utilisateur">
+      <img id="photo-utilisateur" src="" alt="">
+      <span class="nom" id="nom-utilisateur"></span>
+      <button class="bouton-icone" onclick="deconnecter()" title="Se déconnecter">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Bandeau affiché en cas d'erreur d'appel API (jeton expiré, API indisponible...) -->
+  <div id="bandeau-erreur">
+    <span id="texte-erreur"></span>
+    <button onclick="reconnecterSuiteExpiration()">Se reconnecter</button>
+  </div>
+
+  <nav class="onglets">
+    <button class="actif" data-onglet="tableau-bord" onclick="changerOnglet('tableau-bord')">Tableau de bord</button>
+    <button data-onglet="prelevements" onclick="changerOnglet('prelevements')">Prélèvements</button>
+  </nav>
+
+  <!-- ==========================================================================
+       ONGLET 1 — TABLEAU DE BORD
+       ========================================================================== -->
+  <section class="panneau actif" id="panneau-tableau-bord">
+
+    <div class="grille-tableau-bord">
+      <div class="carte carte-hero">
+        <div class="etiquette">Virement d'alimentation mensuel à programmer</div>
+        <div class="montant" id="provision-totale">—</div>
+        <div class="detail-secondaire" id="provision-totale-detail">Calcul en cours…</div>
+      </div>
+      <div class="carte carte-stat">
+        <div class="etiquette">Prélèvements actifs suivis</div>
+        <div class="valeur accent" id="nombre-actifs">—</div>
+        <div class="repartition-categories" id="repartition-categories"></div>
+      </div>
+    </div>
+
+    <div class="conteneur-tableau">
+      <div class="entete-carte">
+        <h3>Détail par prélèvement</h3>
+        <button class="bouton-mini" onclick="rafraichirTableauDeBord()" title="Recalculer">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+      <div class="scroll-horizontal">
+        <table>
+          <thead>
+            <tr>
+              <th>Créditeur</th>
+              <th>Catégorie</th>
+              <th>Mode</th>
+              <th>Provision mensuelle</th>
+            </tr>
+          </thead>
+          <tbody id="corps-tableau-detail"></tbody>
+        </table>
+      </div>
+      <p class="etat-vide" id="etat-vide-detail" style="display:none;">Aucune donnée pour l'instant.</p>
+    </div>
+
+    <p class="champ aide" style="margin-top:16px; text-align:center;">
+      Le solde du vault et le virement retour groupé arriveront ici dès que ces calculs seront ajoutés côté backend.
+    </p>
+  </section>
+
+  <!-- ==========================================================================
+       ONGLET 2 — GESTION DES PRÉLÈVEMENTS
+       ========================================================================== -->
+  <section class="panneau" id="panneau-prelevements">
+    <div class="conteneur-tableau">
+      <div class="barre-outils">
+        <button class="bouton-principal" onclick="ouvrirModaleAjout()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Ajouter un prélèvement
+        </button>
+        <label class="case-toggle">
+          <input type="checkbox" id="case-inclure-inactifs" onchange="rafraichirPrelevements()">
+          Afficher aussi les prélèvements désactivés
+        </label>
+      </div>
+      <div class="scroll-horizontal">
+        <table>
+          <thead>
+            <tr>
+              <th>Créditeur</th>
+              <th>Catégorie</th>
+              <th>Mode</th>
+              <th>Montant</th>
+              <th>Fréquence / échéances</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="corps-tableau-prelevements"></tbody>
+        </table>
+      </div>
+      <p class="etat-vide" id="etat-vide-prelevements" style="display:none;">Aucun prélèvement pour l'instant — ajoute le premier avec le bouton ci-dessus.</p>
+    </div>
+  </section>
+
+</div>
+
+<!-- ============================================================================
+     MODALE — formulaire d'ajout / modification d'un prélèvement
+     ============================================================================ -->
+<div class="fond-modale" id="fond-modale">
+  <div class="modale">
+    <h2 id="titre-modale">Ajouter un prélèvement</h2>
+    <form id="formulaire-prelevement" onsubmit="soumettreFormulaire(event)">
+
+      <div class="segmented">
+        <button type="button" id="segment-classique" class="actif" onclick="changerModeFormulaire('classique')">Récurrence classique</button>
+        <button type="button" id="segment-echeance" onclick="changerModeFormulaire('echeance_connue')">Échéance connue</button>
+      </div>
+
+      <div class="champ">
+        <label for="champ-nom">Créditeur</label>
+        <input type="text" id="champ-nom" required placeholder="ex. Free Telecom">
+      </div>
+
+      <div class="champ">
+        <label for="champ-categorie">Catégorie</label>
+        <input type="text" id="champ-categorie" list="liste-categories" placeholder="ex. Télécom">
+        <datalist id="liste-categories">
+          <option value="Assurance"><option value="Assurance vie"><option value="Mutuelle">
+          <option value="Internet/Box"><option value="Mobile"><option value="Streaming vidéo">
+          <option value="Streaming musique"><option value="Outils pro"><option value="Outils IA">
+          <option value="Bureautique"><option value="Électricité"><option value="Loyer">
+          <option value="Salle de sport"><option value="Scolarité"><option value="Carte bancaire">
+          <option value="Impôts"><option value="Stockage"><option value="Abonnement">
+        </datalist>
+      </div>
+
+      <!-- Champs spécifiques au mode "classique" -->
+      <div id="bloc-classique">
+        <div class="ligne-deux-champs">
+          <div class="champ">
+            <label for="champ-montant-classique">Montant par échéance (€)</label>
+            <input type="number" step="0.01" min="0" id="champ-montant-classique">
+          </div>
+          <div class="champ">
+            <label for="champ-frequence">Échéances par an</label>
+            <input type="number" step="1" min="1" id="champ-frequence" placeholder="ex. 12">
+          </div>
+        </div>
+        <div class="champ">
+          <label for="champ-date-debut">Date de début (facultatif)</label>
+          <input type="date" id="champ-date-debut">
+        </div>
+        <p class="champ aide">Provision mensuelle = montant × échéances par an ÷ 12. Exemples : 12 (mensuel), 4 (trimestriel), 2 (semestriel), 1 (annuel).</p>
+      </div>
+
+      <!-- Champs spécifiques au mode "échéance connue" -->
+      <div id="bloc-echeance" style="display:none;">
+        <div class="champ">
+          <label for="champ-montant-echeance">Montant par échéance (€)</label>
+          <input type="number" step="0.01" min="0" id="champ-montant-echeance">
+        </div>
+        <div class="ligne-deux-champs">
+          <div class="champ">
+            <label for="champ-premiere-echeance">Date de la 1ère échéance</label>
+            <input type="date" id="champ-premiere-echeance">
+          </div>
+          <div class="champ">
+            <label for="champ-derniere-echeance">Date de la dernière (facultatif)</label>
+            <input type="date" id="champ-derniere-echeance">
+          </div>
+        </div>
+        <div class="champ">
+          <label for="champ-nb-total">Nombre total d'échéances (facultatif)</label>
+          <input type="number" step="1" min="1" id="champ-nb-total">
+        </div>
+        <p class="champ aide">Renseigne la date de fin, ou le nombre d'échéances, ou les deux pour une répartition précise. Aucun des deux = échéance unique.</p>
+      </div>
+
+      <div class="champ">
+        <label for="champ-notes">Notes (facultatif)</label>
+        <textarea id="champ-notes" rows="2"></textarea>
+      </div>
+
+      <div class="actions-modale">
+        <button type="button" class="bouton-secondaire" onclick="fermerModale()">Annuler</button>
+        <button type="submit" class="bouton-principal">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================================
+   CONFIGURATION — valeurs propres au déploiement de Charles
+   ============================================================================ */
+const URL_API = 'https://script.google.com/macros/s/AKfycbwNQEg00Mu7_Cecm2stSQyOeoTzVW6OWwKrGLpgosHZSMhVwQTnV3etvIdy6wHOlhcZQw/exec';
+const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.googleusercontent.com';
+
+/* ============================================================================
+   ÉTAT DE L'APPLICATION (en mémoire uniquement, remis à zéro à chaque
+   rechargement de page — pas de persistance locale, par simplicité et
+   parce que le jeton d'identité Google expire de toute façon au bout
+   d'environ une heure)
+   ============================================================================ */
+let idTokenActuel = null;
+let prelevementsActuels = [];
+let modeFormulaireActuel = 'classique';
+let idEnEdition = null; // null = ajout, sinon = id du prélèvement en cours de modification
+
+/* ============================================================================
+   CONNEXION GOOGLE (Google Identity Services)
+   ============================================================================ */
+
+// Appelée automatiquement une fois le script Google chargé (voir balise <script> dans le <head>)
+function initialiserConnexionGoogle() {
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: gererReponseConnexion,
+    auto_select: false
+  });
+  google.accounts.id.renderButton(document.getElementById('bouton-google'), {
+    theme: 'filled_blue',
+    size: 'large',
+    shape: 'pill',
+    text: 'signin_with',
+    locale: 'fr'
+  });
+}
+
+// Appelée par Google une fois que Charles s'est connecté avec succès
+function gererReponseConnexion(reponse) {
+  idTokenActuel = reponse.credential;
+  const profil = decoderJetonJWT(idTokenActuel);
+
+  document.getElementById('photo-utilisateur').src = profil.picture || '';
+  document.getElementById('nom-utilisateur').textContent = profil.given_name || profil.name || profil.email;
+
+  document.getElementById('ecran-connexion').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+
+  chargerDonneesInitiales();
+}
+
+// Décode la partie "payload" d'un jeton JWT (base64url) sans vérification de
+// signature — ceci ne sert qu'à afficher le nom/la photo de Charles dans
+// l'interface. La vraie vérification de sécurité a lieu côté serveur (Apps Script).
+function decoderJetonJWT(jeton) {
+  const partiePayload = jeton.split('.')[1];
+  const base64 = partiePayload.replace(/-/g, '+').replace(/_/g, '/');
+  const texteJson = decodeURIComponent(
+    atob(base64).split('').map(function (caractere) {
+      return '%' + ('00' + caractere.charCodeAt(0).toString(16)).slice(-2);
+    }).join('')
+  );
+  return JSON.parse(texteJson);
+}
+
+function deconnecter() {
+  idTokenActuel = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('ecran-connexion').style.display = 'flex';
+  google.accounts.id.disableAutoSelect();
+}
+
+// Utilisée quand une action échoue parce que le jeton a expiré (au bout
+// d'environ une heure) : on renvoie simplement Charles à l'écran de connexion.
+function reconnecterSuiteExpiration() {
+  masquerBandeauErreur();
+  deconnecter();
+}
+
+/* ============================================================================
+   APPEL GÉNÉRIQUE À L'API (backend Google Apps Script)
+   ============================================================================ */
+
+// Content-Type "text/plain" volontairement, pour rester dans les cas de
+// requête "simple" côté CORS et éviter une pré-vérification (preflight) que
+// les Web Apps Apps Script ne savent pas gérer correctement.
+async function appelerAPI(action, parametres) {
+  const corps = Object.assign({ action: action, idToken: idTokenActuel }, parametres || {});
+
+  let reponseHttp;
+  try {
+    reponseHttp = await fetch(URL_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(corps)
+    });
+  } catch (erreurReseau) {
+    throw new Error('Impossible de joindre le serveur. Vérifie ta connexion internet.');
+  }
+
+  const resultat = await reponseHttp.json();
+  if (!resultat.success) {
+    throw new Error(resultat.error || 'Erreur inconnue renvoyée par le serveur.');
+  }
+  return resultat.data;
+}
+
+/* ============================================================================
+   CHARGEMENT INITIAL + NAVIGATION ENTRE ONGLETS
+   ============================================================================ */
+
+async function chargerDonneesInitiales() {
+  try {
+    await Promise.all([rafraichirTableauDeBord(), rafraichirPrelevements()]);
+  } catch (erreur) {
+    afficherErreur(erreur.message);
+  }
+}
+
+function changerOnglet(nomOnglet) {
+  document.querySelectorAll('nav.onglets button').forEach(function (bouton) {
+    bouton.classList.toggle('actif', bouton.dataset.onglet === nomOnglet);
+  });
+  document.getElementById('panneau-tableau-bord').classList.toggle('actif', nomOnglet === 'tableau-bord');
+  document.getElementById('panneau-prelevements').classList.toggle('actif', nomOnglet === 'prelevements');
+}
+
+/* ============================================================================
+   TABLEAU DE BORD
+   ============================================================================ */
+
+async function rafraichirTableauDeBord() {
+  try {
+    const donnees = await appelerAPI('calculerProvisionMensuelle');
+
+    document.getElementById('provision-totale').textContent = formaterMontant(donnees.provision_mensuelle_totale);
+    document.getElementById('provision-totale-detail').textContent =
+      donnees.nombre_lignes_actives + ' prélèvement(s) actif(s) pris en compte, un douzième provisionné chaque mois.';
+    document.getElementById('nombre-actifs').textContent = donnees.nombre_lignes_actives;
+
+    remplirTableauDetail(donnees.detail);
+    remplirRepartitionCategories(donnees.detail);
+    masquerBandeauErreur();
+  } catch (erreur) {
+    afficherErreur(erreur.message);
+  }
+}
+
+function remplirTableauDetail(detail) {
+  const corps = document.getElementById('corps-tableau-detail');
+  const etatVide = document.getElementById('etat-vide-detail');
+  corps.innerHTML = '';
+
+  if (!detail || detail.length === 0) {
+    etatVide.style.display = 'block';
+    return;
+  }
+  etatVide.style.display = 'none';
+
+  const detailTrie = detail.slice().sort(function (a, b) { return b.provision_mensuelle - a.provision_mensuelle; });
+
+  detailTrie.forEach(function (ligne) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + echapper(ligne.nom_crediteur) + '</td>' +
+      '<td>' + echapper(ligne.categorie || '—') + '</td>' +
+      '<td>' + badgeMode(ligne.mode) + '</td>' +
+      '<td><strong>' + formaterMontant(ligne.provision_mensuelle) + '</strong></td>';
+    corps.appendChild(tr);
+  });
+}
+
+function remplirRepartitionCategories(detail) {
+  const conteneur = document.getElementById('repartition-categories');
+  conteneur.innerHTML = '';
+  if (!detail || detail.length === 0) return;
+
+  const totauxParCategorie = {};
+  detail.forEach(function (ligne) {
+    const categorie = ligne.categorie || 'Autre';
+    totauxParCategorie[categorie] = (totauxParCategorie[categorie] || 0) + ligne.provision_mensuelle;
+  });
+
+  Object.keys(totauxParCategorie)
+    .sort(function (a, b) { return totauxParCategorie[b] - totauxParCategorie[a]; })
+    .forEach(function (categorie) {
+      const chip = document.createElement('span');
+      chip.className = 'chip-categorie';
+      chip.innerHTML = echapper(categorie) + ' <span class="montant-chip">' + formaterMontant(totauxParCategorie[categorie]) + '</span>';
+      conteneur.appendChild(chip);
+    });
+}
+
+/* ============================================================================
+   GESTION DES PRÉLÈVEMENTS — liste
+   ============================================================================ */
+
+async function rafraichirPrelevements() {
+  const inclureInactifs = document.getElementById('case-inclure-inactifs').checked;
+  try {
+    const liste = await appelerAPI('listerPrelevements', { inclureInactifs: inclureInactifs });
+    prelevementsActuels = liste;
+    remplirTableauPrelevements(liste);
+    masquerBandeauErreur();
+  } catch (erreur) {
+    afficherErreur(erreur.message);
+  }
+}
+
+function remplirTableauPrelevements(liste) {
+  const corps = document.getElementById('corps-tableau-prelevements');
+  const etatVide = document.getElementById('etat-vide-prelevements');
+  corps.innerHTML = '';
+
+  if (!liste || liste.length === 0) {
+    etatVide.style.display = 'block';
+    return;
+  }
+  etatVide.style.display = 'none';
+
+  liste.forEach(function (prelevement) {
+    const tr = document.createElement('tr');
+    if (!prelevement.actif) tr.classList.add('ligne-inactive');
+
+    const colonneFrequence = prelevement.mode === 'classique'
+      ? (prelevement.nb_echeances_par_an ? prelevement.nb_echeances_par_an + 'x / an' : '—')
+      : formaterEcheanceConnue(prelevement);
+
+    tr.innerHTML =
+      '<td>' + echapper(prelevement.nom_crediteur) + '</td>' +
+      '<td>' + echapper(prelevement.categorie || '—') + '</td>' +
+      '<td>' + badgeMode(prelevement.mode) + '</td>' +
+      '<td>' + formaterMontant(prelevement.montant_reference) + '</td>' +
+      '<td>' + colonneFrequence + '</td>' +
+      '<td class="actions-ligne"></td>';
+
+    const celluleActions = tr.querySelector('.actions-ligne');
+    celluleActions.appendChild(creerBoutonAction('modifier', prelevement));
+    if (prelevement.actif) {
+      celluleActions.appendChild(creerBoutonAction('desactiver', prelevement));
+    } else {
+      celluleActions.appendChild(creerBoutonAction('reactiver', prelevement));
+    }
+
+    corps.appendChild(tr);
+  });
+}
+
+function formaterEcheanceConnue(prelevement) {
+  let texte = 'dès le ' + formaterDateAffichage(prelevement.date_premiere_echeance);
+  if (prelevement.date_derniere_echeance) texte += ' → ' + formaterDateAffichage(prelevement.date_derniere_echeance);
+  else if (prelevement.nb_echeances_total) texte += ' (' + prelevement.nb_echeances_total + ' échéances)';
+  return texte;
+}
+
+function creerBoutonAction(type, prelevement) {
+  const bouton = document.createElement('button');
+  bouton.className = 'bouton-mini';
+  const icones = {
+    modifier: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+    desactiver: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>',
+    reactiver: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
+  };
+  bouton.innerHTML = icones[type];
+
+  if (type === 'modifier') {
+    bouton.title = 'Modifier';
+    bouton.onclick = function () { ouvrirModaleModification(prelevement); };
+  } else if (type === 'desactiver') {
+    bouton.classList.add('danger');
+    bouton.title = 'Désactiver';
+    bouton.onclick = function () { desactiverEtRafraichir(prelevement); };
+  } else {
+    bouton.classList.add('accent');
+    bouton.title = 'Réactiver';
+    bouton.onclick = function () { reactiverEtRafraichir(prelevement); };
+  }
+  return bouton;
+}
+
+async function desactiverEtRafraichir(prelevement) {
+  if (!confirm('Désactiver "' + prelevement.nom_crediteur + '" ? Il ne sera plus provisionné, mais reste conservé dans l\'historique.')) return;
+  try {
+    await appelerAPI('desactiverPrelevement', { id: prelevement.id });
+    afficherToast('Prélèvement désactivé.');
+    await Promise.all([rafraichirPrelevements(), rafraichirTableauDeBord()]);
+  } catch (erreur) {
+    afficherErreur(erreur.message);
+  }
+}
+
+async function reactiverEtRafraichir(prelevement) {
+  try {
+    await appelerAPI('modifierPrelevement', { id: prelevement.id, prelevement: { actif: 'oui' } });
+    afficherToast('Prélèvement réactivé.');
+    await Promise.all([rafraichirPrelevements(), rafraichirTableauDeBord()]);
+  } catch (erreur) {
+    afficherErreur(erreur.message);
+  }
+}
+
+/* ============================================================================
+   MODALE D'AJOUT / MODIFICATION
+   ============================================================================ */
+
+function ouvrirModaleAjout() {
+  idEnEdition = null;
+  document.getElementById('titre-modale').textContent = 'Ajouter un prélèvement';
+  document.getElementById('formulaire-prelevement').reset();
+  changerModeFormulaire('classique');
+  document.getElementById('fond-modale').classList.add('visible');
+}
+
+function ouvrirModaleModification(prelevement) {
+  idEnEdition = prelevement.id;
+  document.getElementById('titre-modale').textContent = 'Modifier « ' + prelevement.nom_crediteur + ' »';
+  document.getElementById('formulaire-prelevement').reset();
+
+  document.getElementById('champ-nom').value = prelevement.nom_crediteur || '';
+  document.getElementById('champ-categorie').value = prelevement.categorie || '';
+  document.getElementById('champ-notes').value = prelevement.notes || '';
+
+  changerModeFormulaire(prelevement.mode);
+
+  if (prelevement.mode === 'classique') {
+    document.getElementById('champ-montant-classique').value = prelevement.montant_reference || '';
+    document.getElementById('champ-frequence').value = prelevement.nb_echeances_par_an || '';
+    document.getElementById('champ-date-debut').value = prelevement.date_debut || '';
+  } else {
+    document.getElementById('champ-montant-echeance').value = prelevement.montant_reference || '';
+    document.getElementById('champ-premiere-echeance').value = prelevement.date_premiere_echeance || '';
+    document.getElementById('champ-derniere-echeance').value = prelevement.date_derniere_echeance || '';
+    document.getElementById('champ-nb-total').value = prelevement.nb_echeances_total || '';
+  }
+
+  document.getElementById('fond-modale').classList.add('visible');
+}
+
+function fermerModale() {
+  document.getElementById('fond-modale').classList.remove('visible');
+}
+
+function changerModeFormulaire(mode) {
+  modeFormulaireActuel = mode;
+  document.getElementById('segment-classique').classList.toggle('actif', mode === 'classique');
+  document.getElementById('segment-echeance').classList.toggle('actif', mode === 'echeance_connue');
+  document.getElementById('bloc-classique').style.display = mode === 'classique' ? 'block' : 'none';
+  document.getElementById('bloc-echeance').style.display = mode === 'echeance_connue' ? 'block' : 'none';
+}
+
+async function soumettreFormulaire(evenement) {
+  evenement.preventDefault();
+
+  // On envoie systématiquement tous les champs (y compris vides) pour que,
+  // en cas de changement de mode lors d'une modification, les anciennes
+  // valeurs devenues inutiles soient bien effacées côté Sheet.
+  const donnees = {
+    nom_crediteur: document.getElementById('champ-nom').value.trim(),
+    categorie: document.getElementById('champ-categorie').value.trim(),
+    mode: modeFormulaireActuel,
+    notes: document.getElementById('champ-notes').value.trim(),
+    montant_reference: '',
+    nb_echeances_par_an: '',
+    date_debut: '',
+    date_premiere_echeance: '',
+    date_derniere_echeance: '',
+    nb_echeances_total: ''
+  };
+
+  if (modeFormulaireActuel === 'classique') {
+    donnees.montant_reference = Number(document.getElementById('champ-montant-classique').value) || 0;
+    donnees.nb_echeances_par_an = Number(document.getElementById('champ-frequence').value) || 0;
+    donnees.date_debut = document.getElementById('champ-date-debut').value;
+  } else {
+    donnees.montant_reference = Number(document.getElementById('champ-montant-echeance').value) || 0;
+    donnees.date_premiere_echeance = document.getElementById('champ-premiere-echeance').value;
+    donnees.date_derniere_echeance = document.getElementById('champ-derniere-echeance').value;
+    donnees.nb_echeances_total = document.getElementById('champ-nb-total').value ? Number(document.getElementById('champ-nb-total').value) : '';
+    if (!donnees.date_premiere_echeance) {
+      afficherErreur('La date de la 1ère échéance est obligatoire en mode "échéance connue".');
+      return;
+    }
+  }
+
+  try {
+    if (idEnEdition) {
+      await appelerAPI('modifierPrelevement', { id: idEnEdition, prelevement: donnees });
+      afficherToast('Prélèvement modifié.');
+    } else {
+      await appelerAPI('ajouterPrelevement', { prelevement: donnees });
+      afficherToast('Prélèvement ajouté.');
+    }
+    fermerModale();
+    await Promise.all([rafraichirPrelevements(), rafraichirTableauDeBord()]);
+  } catch (erreur) {
+    afficherErreur(erreur.message);
+  }
+}
+
+/* ============================================================================
+   UTILITAIRES D'AFFICHAGE
+   ============================================================================ */
+
+function formaterMontant(nombre) {
+  return (Number(nombre) || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+}
+
+function formaterDateAffichage(dateIso) {
+  if (!dateIso) return '';
+  const parties = dateIso.split('-');
+  if (parties.length !== 3) return dateIso;
+  return parties[2] + '/' + parties[1] + '/' + parties[0];
+}
+
+function badgeMode(mode) {
+  const libelle = mode === 'classique' ? 'Classique' : 'Échéance connue';
+  return '<span class="badge-mode ' + mode + '">' + libelle + '</span>';
+}
+
+// Échappe le texte injecté dans le HTML pour éviter tout souci d'affichage
+// si un nom de créditeur contient des caractères spéciaux.
+function echapper(texte) {
+  const div = document.createElement('div');
+  div.textContent = texte == null ? '' : String(texte);
+  return div.innerHTML;
+}
+
+function afficherErreur(message) {
+  document.getElementById('texte-erreur').textContent = message;
+  document.getElementById('bandeau-erreur').classList.add('visible');
+}
+
+function masquerBandeauErreur() {
+  document.getElementById('bandeau-erreur').classList.remove('visible');
+}
+
+let minuteurToast = null;
+function afficherToast(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.add('visible');
+  clearTimeout(minuteurToast);
+  minuteurToast = setTimeout(function () { toast.classList.remove('visible'); }, 3000);
+}
+</script>
+</body>
+</html>
