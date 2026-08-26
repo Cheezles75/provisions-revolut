@@ -158,13 +158,49 @@
   }
   .bouton-icone:hover { background: var(--surface-douce); color: var(--danger); }
 
-  /* Navigation par onglets */
+  /* Barre regroupant la navigation par onglets et le bascule mensuel/annuel */
+  .barre-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+
   nav.onglets {
     display: flex;
     gap: 8px;
-    margin-bottom: 22px;
     overflow-x: auto;
     padding-bottom: 2px;
+  }
+
+  /* Bascule d'affichage Mensuel / Annuel — agit sur tous les montants de la
+     page à l'exception de l'encart bleu de synthèse du tableau de bord. */
+  .toggle-periode {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    padding: 4px;
+    border-radius: 999px;
+    box-shadow: var(--ombre-legere);
+    flex-shrink: 0;
+  }
+
+  .toggle-periode button {
+    border: none;
+    background: none;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--texte-attenue);
+    transition: all 0.15s;
+  }
+
+  .toggle-periode button.actif {
+    background: var(--accent);
+    color: #fff;
   }
 
   nav.onglets button {
@@ -279,6 +315,16 @@
     opacity: 0.9;
   }
 
+  .carte-hero .total-annuel-hero {
+    margin-top: 14px;
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.18);
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+
   .carte-stat .etiquette {
     color: var(--texte-attenue);
     font-size: 13.5px;
@@ -345,6 +391,43 @@
     color: var(--texte-attenue);
     padding: 10px 16px;
     border-bottom: 2px solid var(--surface-douce);
+    white-space: nowrap;
+  }
+
+  thead th.triable { cursor: pointer; user-select: none; }
+  thead th.triable:hover { color: var(--primaire-sombre); }
+
+  .fleche-tri {
+    font-size: 11px;
+    opacity: 0.45;
+    margin-left: 3px;
+  }
+  .fleche-tri.actif { opacity: 1; color: var(--primaire); font-weight: 800; }
+
+  .unite-montant {
+    font-size: 11.5px;
+    color: var(--texte-attenue);
+    font-weight: 700;
+  }
+
+  /* Petit "camembert" représentant la fréquence d'un prélèvement classique :
+     la portion remplie correspond à la fraction de l'année qui s'écoule
+     entre deux échéances (1/12 pour un mensuel, 1/4 pour un trimestriel,
+     1/2 pour un semestriel, la totalité pour un annuel). */
+  .camembert-frequence {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin-right: 7px;
+    vertical-align: middle;
+    border: 1px solid rgba(63, 87, 130, 0.15);
+  }
+
+  .icone-frequence {
+    margin-right: 6px;
+    vertical-align: middle;
+    color: var(--avertissement);
   }
 
   tbody td {
@@ -589,10 +672,16 @@
     <button onclick="reconnecterSuiteExpiration()">Se reconnecter</button>
   </div>
 
-  <nav class="onglets">
-    <button class="actif" data-onglet="tableau-bord" onclick="changerOnglet('tableau-bord')">Tableau de bord</button>
-    <button data-onglet="prelevements" onclick="changerOnglet('prelevements')">Prélèvements</button>
-  </nav>
+  <div class="barre-navigation">
+    <nav class="onglets">
+      <button class="actif" data-onglet="tableau-bord" onclick="changerOnglet('tableau-bord')">Tableau de bord</button>
+      <button data-onglet="prelevements" onclick="changerOnglet('prelevements')">Prélèvements</button>
+    </nav>
+    <div class="toggle-periode" title="Bascule l'affichage des montants entre mensuel et annuel (l'encart bleu de synthèse n'est pas concerné)">
+      <button class="actif" data-periode="mensuel" onclick="changerPeriodeAffichage('mensuel')">Mensuel</button>
+      <button data-periode="annuel" onclick="changerPeriodeAffichage('annuel')">Annuel</button>
+    </div>
+  </div>
 
   <!-- ==========================================================================
        ONGLET 1 — TABLEAU DE BORD
@@ -604,6 +693,7 @@
         <div class="etiquette">Virement d'alimentation mensuel à programmer</div>
         <div class="montant" id="provision-totale">—</div>
         <div class="detail-secondaire" id="provision-totale-detail">Calcul en cours…</div>
+        <div class="total-annuel-hero" id="provision-totale-annuelle"></div>
       </div>
       <div class="carte carte-stat">
         <div class="etiquette">Prélèvements actifs suivis</div>
@@ -620,13 +710,14 @@
         </button>
       </div>
       <div class="scroll-horizontal">
-        <table>
+        <table id="tableau-detail">
           <thead>
             <tr>
-              <th>Créditeur</th>
-              <th>Catégorie</th>
-              <th>Mode</th>
-              <th>Provision mensuelle</th>
+              <th class="triable" onclick="trierDetail('nom_crediteur')">Créditeur <span class="fleche-tri" data-col="nom_crediteur">⇅</span></th>
+              <th class="triable" onclick="trierDetail('categorie')">Catégorie <span class="fleche-tri" data-col="categorie">⇅</span></th>
+              <th class="triable" onclick="trierDetail('date')">Date <span class="fleche-tri" data-col="date">⇅</span></th>
+              <th class="triable" onclick="trierDetail('mode')">Mode <span class="fleche-tri" data-col="mode">⇅</span></th>
+              <th class="triable" onclick="trierDetail('provision')"><span id="entete-provision">Provision mensuelle</span> <span class="fleche-tri" data-col="provision">⇅</span></th>
             </tr>
           </thead>
           <tbody id="corps-tableau-detail"></tbody>
@@ -656,14 +747,15 @@
         </label>
       </div>
       <div class="scroll-horizontal">
-        <table>
+        <table id="tableau-prelevements">
           <thead>
             <tr>
-              <th>Créditeur</th>
-              <th>Catégorie</th>
-              <th>Mode</th>
-              <th>Montant</th>
-              <th>Fréquence / échéances</th>
+              <th class="triable" onclick="trierPrelevements('nom_crediteur')">Créditeur <span class="fleche-tri" data-col="nom_crediteur">⇅</span></th>
+              <th class="triable" onclick="trierPrelevements('categorie')">Catégorie <span class="fleche-tri" data-col="categorie">⇅</span></th>
+              <th class="triable" onclick="trierPrelevements('date')">Date <span class="fleche-tri" data-col="date">⇅</span></th>
+              <th class="triable" onclick="trierPrelevements('mode')">Mode <span class="fleche-tri" data-col="mode">⇅</span></th>
+              <th class="triable" onclick="trierPrelevements('montant')">Montant <span class="fleche-tri" data-col="montant">⇅</span></th>
+              <th class="triable" onclick="trierPrelevements('frequence')">Fréquence / échéances <span class="fleche-tri" data-col="frequence">⇅</span></th>
               <th></th>
             </tr>
           </thead>
@@ -782,6 +874,11 @@ let prelevementsActuels = [];
 let modeFormulaireActuel = 'classique';
 let idEnEdition = null; // null = ajout, sinon = id du prélèvement en cours de modification
 
+let vueMontant = 'mensuel'; // 'mensuel' ou 'annuel' — bascule d'affichage globale
+let dernierDetailProvisions = []; // cache du dernier calcul, pour re-trier sans rappeler l'API
+let etatTriDetail = { colonne: null, sens: 1 }; // tri courant du tableau de bord
+let etatTriPrelevements = { colonne: null, sens: 1 }; // tri courant du tableau des prélèvements
+
 /* ============================================================================
    CONNEXION GOOGLE (Google Identity Services)
    ============================================================================ */
@@ -878,10 +975,27 @@ async function appelerAPI(action, parametres) {
 
 async function chargerDonneesInitiales() {
   try {
-    await Promise.all([rafraichirTableauDeBord(), rafraichirPrelevements()]);
+    // On charge d'abord les prélèvements (dates, fréquences...) : le
+    // tableau de bord s'appuie dessus pour afficher sa colonne "Date".
+    await rafraichirPrelevements();
+    await rafraichirTableauDeBord();
   } catch (erreur) {
     afficherErreur(erreur.message);
   }
+}
+
+// Bascule l'affichage de tous les montants de la page entre mensuel et
+// annuel — à l'exception de l'encart bleu du tableau de bord, qui reste un
+// récapitulatif de synthèse toujours exprimé en mensuel + annuel.
+function changerPeriodeAffichage(periode) {
+  vueMontant = periode;
+  document.querySelectorAll('.toggle-periode button').forEach(function (bouton) {
+    bouton.classList.toggle('actif', bouton.dataset.periode === periode);
+  });
+  document.getElementById('entete-provision').textContent = periode === 'annuel' ? 'Provision annuelle' : 'Provision mensuelle';
+  remplirTableauDetail(dernierDetailProvisions);
+  remplirRepartitionCategories(dernierDetailProvisions);
+  remplirTableauPrelevements(prelevementsActuels);
 }
 
 function changerOnglet(nomOnglet) {
@@ -899,14 +1013,17 @@ function changerOnglet(nomOnglet) {
 async function rafraichirTableauDeBord() {
   try {
     const donnees = await appelerAPI('calculerProvisionMensuelle');
+    dernierDetailProvisions = donnees.detail || [];
 
     document.getElementById('provision-totale').textContent = formaterMontant(donnees.provision_mensuelle_totale);
     document.getElementById('provision-totale-detail').textContent =
       donnees.nombre_lignes_actives + ' prélèvement(s) actif(s) pris en compte, un douzième provisionné chaque mois.';
+    document.getElementById('provision-totale-annuelle').textContent =
+      'Soit ' + formaterMontant(donnees.provision_mensuelle_totale * 12) + ' sur l\'année';
     document.getElementById('nombre-actifs').textContent = donnees.nombre_lignes_actives;
 
-    remplirTableauDetail(donnees.detail);
-    remplirRepartitionCategories(donnees.detail);
+    remplirTableauDetail(dernierDetailProvisions);
+    remplirRepartitionCategories(dernierDetailProvisions);
     masquerBandeauErreur();
   } catch (erreur) {
     afficherErreur(erreur.message);
@@ -924,17 +1041,40 @@ function remplirTableauDetail(detail) {
   }
   etatVide.style.display = 'none';
 
-  const detailTrie = detail.slice().sort(function (a, b) { return b.provision_mensuelle - a.provision_mensuelle; });
+  const detailTrie = trierListeGenerique(detail, etatTriDetail, {
+    nom_crediteur: function (l) { return l.nom_crediteur || ''; },
+    categorie: function (l) { return l.categorie || ''; },
+    date: function (l) { return cleTriDate(obtenirPrelevementParId(l.id)); },
+    mode: function (l) { return l.mode || ''; },
+    provision: function (l) { return l.provision_mensuelle; }
+  }, 'provision', -1); // tri par défaut : provision décroissante
 
   detailTrie.forEach(function (ligne) {
+    const prelevementLie = obtenirPrelevementParId(ligne.id);
+    const montantAffiche = vueMontant === 'annuel' ? ligne.provision_mensuelle * 12 : ligne.provision_mensuelle;
+    const unite = vueMontant === 'annuel' ? 'an' : 'mois';
+
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + echapper(ligne.nom_crediteur) + '</td>' +
       '<td>' + echapper(ligne.categorie || '—') + '</td>' +
+      '<td>' + formaterColonneDate(prelevementLie) + '</td>' +
       '<td>' + badgeMode(ligne.mode) + '</td>' +
-      '<td><strong>' + formaterMontant(ligne.provision_mensuelle) + '</strong></td>';
+      '<td><strong>' + formaterMontant(montantAffiche) + '</strong> <span class="unite-montant">/' + unite + '</span></td>';
     corps.appendChild(tr);
   });
+
+  mettreAJourFlechesTri('tableau-detail', etatTriDetail);
+}
+
+function trierDetail(colonne) {
+  if (etatTriDetail.colonne === colonne) {
+    etatTriDetail.sens *= -1;
+  } else {
+    etatTriDetail.colonne = colonne;
+    etatTriDetail.sens = 1;
+  }
+  remplirTableauDetail(dernierDetailProvisions);
 }
 
 function remplirRepartitionCategories(detail) {
@@ -948,12 +1088,15 @@ function remplirRepartitionCategories(detail) {
     totauxParCategorie[categorie] = (totauxParCategorie[categorie] || 0) + ligne.provision_mensuelle;
   });
 
+  const facteur = vueMontant === 'annuel' ? 12 : 1;
+  const unite = vueMontant === 'annuel' ? '/an' : '/mois';
+
   Object.keys(totauxParCategorie)
     .sort(function (a, b) { return totauxParCategorie[b] - totauxParCategorie[a]; })
     .forEach(function (categorie) {
       const chip = document.createElement('span');
       chip.className = 'chip-categorie';
-      chip.innerHTML = echapper(categorie) + ' <span class="montant-chip">' + formaterMontant(totauxParCategorie[categorie]) + '</span>';
+      chip.innerHTML = echapper(categorie) + ' <span class="montant-chip">' + formaterMontant(totauxParCategorie[categorie] * facteur) + ' <small>' + unite + '</small></span>';
       conteneur.appendChild(chip);
     });
 }
@@ -985,19 +1128,29 @@ function remplirTableauPrelevements(liste) {
   }
   etatVide.style.display = 'none';
 
-  liste.forEach(function (prelevement) {
+  const listeTriee = trierListeGenerique(liste, etatTriPrelevements, {
+    nom_crediteur: function (p) { return p.nom_crediteur || ''; },
+    categorie: function (p) { return p.categorie || ''; },
+    date: function (p) { return cleTriDate(p); },
+    mode: function (p) { return p.mode || ''; },
+    montant: function (p) { return valeurMontantAffiche(p); },
+    frequence: function (p) { return p.mode === 'classique' ? (Number(p.nb_echeances_par_an) || 0) : 9999; }
+  }, 'nom_crediteur', 1);
+
+  listeTriee.forEach(function (prelevement) {
     const tr = document.createElement('tr');
     if (!prelevement.actif) tr.classList.add('ligne-inactive');
 
-    const colonneFrequence = prelevement.mode === 'classique'
+    const colonneFrequence = pictogrammeFrequence(prelevement) + (prelevement.mode === 'classique'
       ? (prelevement.nb_echeances_par_an ? prelevement.nb_echeances_par_an + 'x / an' : '—')
-      : formaterEcheanceConnue(prelevement);
+      : formaterEcheanceConnue(prelevement));
 
     tr.innerHTML =
       '<td>' + echapper(prelevement.nom_crediteur) + '</td>' +
       '<td>' + echapper(prelevement.categorie || '—') + '</td>' +
+      '<td>' + formaterColonneDate(prelevement) + '</td>' +
       '<td>' + badgeMode(prelevement.mode) + '</td>' +
-      '<td>' + formaterMontant(prelevement.montant_reference) + '</td>' +
+      '<td>' + formaterMontantColonne(prelevement) + '</td>' +
       '<td>' + colonneFrequence + '</td>' +
       '<td class="actions-ligne"></td>';
 
@@ -1011,6 +1164,58 @@ function remplirTableauPrelevements(liste) {
 
     corps.appendChild(tr);
   });
+
+  mettreAJourFlechesTri('tableau-prelevements', etatTriPrelevements);
+}
+
+function trierPrelevements(colonne) {
+  if (etatTriPrelevements.colonne === colonne) {
+    etatTriPrelevements.sens *= -1;
+  } else {
+    etatTriPrelevements.colonne = colonne;
+    etatTriPrelevements.sens = 1;
+  }
+  remplirTableauPrelevements(prelevementsActuels);
+}
+
+// Montant affiché dans la colonne "Montant" selon le bascule mensuel/annuel.
+// N'a de sens que pour le mode "classique" (fréquence fixe connue) : une
+// échéance connue garde son montant brut, quel que soit le bascule.
+function valeurMontantAffiche(prelevement) {
+  const montant = Number(prelevement.montant_reference) || 0;
+  if (prelevement.mode !== 'classique') return montant;
+  const frequence = Number(prelevement.nb_echeances_par_an) || 0;
+  return vueMontant === 'annuel' ? montant * frequence : (montant * frequence) / 12;
+}
+
+function formaterMontantColonne(prelevement) {
+  const valeur = valeurMontantAffiche(prelevement);
+  if (prelevement.mode !== 'classique') {
+    return formaterMontant(valeur) + ' <span class="unite-montant">/éch.</span>';
+  }
+  return formaterMontant(valeur) + ' <span class="unite-montant">/' + (vueMontant === 'annuel' ? 'an' : 'mois') + '</span>';
+}
+
+// Pictogramme visuel devant la fréquence : un petit "camembert" dont la
+// portion remplie représente la fraction de l'année entre deux échéances
+// (mensuel = fine tranche, trimestriel = quart, semestriel = moitié,
+// annuel = cercle plein). Une échéance connue affiche une icône dédiée.
+function pictogrammeFrequence(prelevement) {
+  if (prelevement.mode !== 'classique') {
+    return '<svg class="icone-frequence" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>';
+  }
+  const frequence = Number(prelevement.nb_echeances_par_an) || 0;
+  const fraction = frequence > 0 ? Math.min(1, 1 / frequence) : 0;
+  const degres = Math.round(fraction * 360);
+  return '<span class="camembert-frequence" title="' + libelleFrequence(frequence) + '" style="background: conic-gradient(var(--primaire) 0deg ' + degres + 'deg, #e3e9f3 ' + degres + 'deg 360deg);"></span>';
+}
+
+function libelleFrequence(frequence) {
+  if (frequence === 12) return 'Mensuel';
+  if (frequence === 4) return 'Trimestriel';
+  if (frequence === 2) return 'Semestriel';
+  if (frequence === 1) return 'Annuel';
+  return frequence + 'x par an';
 }
 
 function formaterEcheanceConnue(prelevement) {
@@ -1177,6 +1382,68 @@ function formaterDateAffichage(dateIso) {
   const parties = dateIso.split('-');
   if (parties.length !== 3) return dateIso;
   return parties[2] + '/' + parties[1] + '/' + parties[0];
+}
+
+// Retrouve un prélèvement (avec ses dates) à partir de l'id renvoyé dans le
+// détail de calcul du tableau de bord, qui ne contient pas les dates.
+function obtenirPrelevementParId(id) {
+  return prelevementsActuels.find(function (p) { return p.id === id; }) || null;
+}
+
+// Colonne "Date" : le jour du prélèvement s'il est mensuel, sinon jour/mois.
+function formaterColonneDate(prelevement) {
+  if (!prelevement) return '—';
+
+  if (prelevement.mode === 'classique') {
+    if (!prelevement.date_debut) return '—';
+    const date = new Date(prelevement.date_debut + 'T00:00:00');
+    if (Number(prelevement.nb_echeances_par_an) === 12) return String(date.getDate());
+    return String(date.getDate()).padStart(2, '0') + '/' + String(date.getMonth() + 1).padStart(2, '0');
+  }
+
+  // Mode "échéance connue" : on affiche la prochaine échéance (jour/mois).
+  if (!prelevement.date_premiere_echeance) return '—';
+  const date = new Date(prelevement.date_premiere_echeance + 'T00:00:00');
+  return String(date.getDate()).padStart(2, '0') + '/' + String(date.getMonth() + 1).padStart(2, '0');
+}
+
+// Clé numérique (mois × 100 + jour) utilisée pour trier la colonne "Date"
+// dans l'ordre chronologique de l'année, sans dépendre de l'année elle-même.
+function cleTriDate(prelevement) {
+  if (!prelevement) return -1;
+  const dateBase = prelevement.mode === 'classique' ? prelevement.date_debut : prelevement.date_premiere_echeance;
+  if (!dateBase) return -1;
+  const date = new Date(dateBase + 'T00:00:00');
+  return (date.getMonth() + 1) * 100 + date.getDate();
+}
+
+// Tri générique réutilisé par les deux tableaux : "cles" associe chaque nom
+// de colonne à une fonction qui extrait sa valeur comparable sur une ligne.
+function trierListeGenerique(liste, etatTri, cles, colonneParDefaut, sensParDefaut) {
+  const colonne = etatTri.colonne || colonneParDefaut;
+  const sens = etatTri.colonne ? etatTri.sens : sensParDefaut;
+  const obtenirValeur = cles[colonne];
+
+  return liste.slice().sort(function (a, b) {
+    const valeurA = obtenirValeur(a);
+    const valeurB = obtenirValeur(b);
+    if (typeof valeurA === 'string' || typeof valeurB === 'string') {
+      return sens * String(valeurA).localeCompare(String(valeurB), 'fr', { sensitivity: 'base', numeric: true });
+    }
+    return sens * ((valeurA || 0) - (valeurB || 0));
+  });
+}
+
+// Met à jour les petites flèches ↑ / ↓ dans l'en-tête d'un tableau pour
+// refléter la colonne et le sens de tri actuellement appliqués.
+function mettreAJourFlechesTri(idTableau, etatTri) {
+  const tableau = document.getElementById(idTableau);
+  if (!tableau) return;
+  tableau.querySelectorAll('.fleche-tri').forEach(function (fleche) {
+    const estActive = fleche.dataset.col === etatTri.colonne;
+    fleche.classList.toggle('actif', estActive);
+    fleche.textContent = estActive ? (etatTri.sens === 1 ? '↑' : '↓') : '⇅';
+  });
 }
 
 function badgeMode(mode) {
