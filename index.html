@@ -404,12 +404,6 @@
   }
   .fleche-tri.actif { opacity: 1; color: var(--primaire); font-weight: 800; }
 
-  .unite-montant {
-    font-size: 11.5px;
-    color: var(--texte-attenue);
-    font-weight: 700;
-  }
-
   /* Petit "camembert" représentant la fréquence d'un prélèvement classique :
      la portion remplie correspond à la fraction de l'année qui s'écoule
      entre deux échéances (1/12 pour un mensuel, 1/4 pour un trimestriel,
@@ -606,6 +600,57 @@
     margin-top: 24px;
   }
 
+  /* Générateur de série régulière (dans le bloc "échéance connue") */
+  .generateur-serie {
+    background: var(--surface-douce);
+    border: 1.5px dashed var(--bordure);
+    border-radius: var(--rayon-petit);
+    padding: 16px 16px 4px;
+    margin-bottom: 20px;
+  }
+
+  .generateur-serie .generateur-titre {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--texte);
+    margin-bottom: 12px;
+  }
+
+  .ligne-trois-champs {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media (max-width: 640px) {
+    .ligne-trois-champs { grid-template-columns: 1fr; }
+  }
+
+  /* Liste des dates saisies à la main */
+  .ligne-date-manuelle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .ligne-date-manuelle input[type="date"] { flex: 1; }
+
+  .bouton-ajouter-date {
+    width: 100%;
+    background: none;
+    border: 1.5px dashed var(--primaire);
+    color: var(--primaire-sombre);
+    border-radius: var(--rayon-petit);
+    padding: 10px;
+    font-weight: 700;
+    font-size: 13.5px;
+    margin-top: 4px;
+    margin-bottom: 18px;
+    transition: background 0.15s;
+  }
+  .bouton-ajouter-date:hover { background: var(--surface-douce); }
+
   .bouton-secondaire {
     background: var(--surface-douce);
     color: var(--texte-attenue);
@@ -754,7 +799,7 @@
               <th class="triable" onclick="trierPrelevements('categorie')">Catégorie <span class="fleche-tri" data-col="categorie">⇅</span></th>
               <th class="triable" onclick="trierPrelevements('date')">Date <span class="fleche-tri" data-col="date">⇅</span></th>
               <th class="triable" onclick="trierPrelevements('mode')">Mode <span class="fleche-tri" data-col="mode">⇅</span></th>
-              <th class="triable" onclick="trierPrelevements('montant')">Montant <span class="fleche-tri" data-col="montant">⇅</span></th>
+              <th class="triable" onclick="trierPrelevements('montant')"><span id="entete-montant-prelevements">Montant mensuel</span> <span class="fleche-tri" data-col="montant">⇅</span></th>
               <th class="triable" onclick="trierPrelevements('frequence')">Fréquence / échéances <span class="fleche-tri" data-col="frequence">⇅</span></th>
               <th></th>
             </tr>
@@ -824,21 +869,41 @@
           <label for="champ-montant-echeance">Montant par échéance (€)</label>
           <input type="number" step="0.01" min="0" id="champ-montant-echeance">
         </div>
-        <div class="ligne-deux-champs">
-          <div class="champ">
-            <label for="champ-premiere-echeance">Date de la 1ère échéance</label>
-            <input type="date" id="champ-premiere-echeance">
+
+        <!-- Générateur : remplit la liste de dates ci-dessous automatiquement,
+             pour une série régulière espacée d'un nombre de mois choisi. La
+             liste reste ensuite modifiable à la main (ajout, retrait, ou
+             simple correction d'une date qui ne tombe pas pile). -->
+        <div class="generateur-serie">
+          <p class="generateur-titre">Générer une série régulière (facultatif)</p>
+          <div class="ligne-trois-champs">
+            <div class="champ">
+              <label for="champ-serie-debut">1ère échéance</label>
+              <input type="date" id="champ-serie-debut">
+            </div>
+            <div class="champ">
+              <label for="champ-serie-espacement">Tous les combien de mois</label>
+              <input type="number" step="1" min="1" value="1" id="champ-serie-espacement">
+            </div>
+            <div class="champ">
+              <label for="champ-serie-nombre">Nombre d'échéances</label>
+              <input type="number" step="1" min="1" id="champ-serie-nombre">
+            </div>
           </div>
           <div class="champ">
-            <label for="champ-derniere-echeance">Date de la dernière (facultatif)</label>
-            <input type="date" id="champ-derniere-echeance">
+            <label for="champ-serie-fin">... ou jusqu'au (à la place du nombre d'échéances)</label>
+            <input type="date" id="champ-serie-fin">
           </div>
+          <button type="button" class="bouton-secondaire" onclick="genererSerieReguliere()">Générer la liste ci-dessous</button>
         </div>
+
+        <!-- Liste des dates réellement enregistrées : une saisie manuelle,
+             que la série ci-dessus l'ait pré-remplie ou non. -->
         <div class="champ">
-          <label for="champ-nb-total">Nombre total d'échéances (facultatif)</label>
-          <input type="number" step="1" min="1" id="champ-nb-total">
+          <label>Dates des échéances</label>
+          <div id="liste-dates-manuelles"></div>
+          <button type="button" class="bouton-ajouter-date" onclick="ajouterChampDate()">+ Ajouter une date</button>
         </div>
-        <p class="champ aide">Renseigne la date de fin, ou le nombre d'échéances, ou les deux pour une répartition précise. Aucun des deux = échéance unique.</p>
       </div>
 
       <div class="champ">
@@ -993,6 +1058,7 @@ function changerPeriodeAffichage(periode) {
     bouton.classList.toggle('actif', bouton.dataset.periode === periode);
   });
   document.getElementById('entete-provision').textContent = periode === 'annuel' ? 'Provision annuelle' : 'Provision mensuelle';
+  document.getElementById('entete-montant-prelevements').textContent = periode === 'annuel' ? 'Montant annuel' : 'Montant mensuel';
   remplirTableauDetail(dernierDetailProvisions);
   remplirRepartitionCategories(dernierDetailProvisions);
   remplirTableauPrelevements(prelevementsActuels);
@@ -1052,7 +1118,6 @@ function remplirTableauDetail(detail) {
   detailTrie.forEach(function (ligne) {
     const prelevementLie = obtenirPrelevementParId(ligne.id);
     const montantAffiche = vueMontant === 'annuel' ? ligne.provision_mensuelle * 12 : ligne.provision_mensuelle;
-    const unite = vueMontant === 'annuel' ? 'an' : 'mois';
 
     const tr = document.createElement('tr');
     tr.innerHTML =
@@ -1060,7 +1125,7 @@ function remplirTableauDetail(detail) {
       '<td>' + echapper(ligne.categorie || '—') + '</td>' +
       '<td>' + formaterColonneDate(prelevementLie) + '</td>' +
       '<td>' + badgeMode(ligne.mode) + '</td>' +
-      '<td><strong>' + formaterMontant(montantAffiche) + '</strong> <span class="unite-montant">/' + unite + '</span></td>';
+      '<td><strong>' + formaterMontant(montantAffiche) + '</strong></td>';
     corps.appendChild(tr);
   });
 
@@ -1089,14 +1154,13 @@ function remplirRepartitionCategories(detail) {
   });
 
   const facteur = vueMontant === 'annuel' ? 12 : 1;
-  const unite = vueMontant === 'annuel' ? '/an' : '/mois';
 
   Object.keys(totauxParCategorie)
     .sort(function (a, b) { return totauxParCategorie[b] - totauxParCategorie[a]; })
     .forEach(function (categorie) {
       const chip = document.createElement('span');
       chip.className = 'chip-categorie';
-      chip.innerHTML = echapper(categorie) + ' <span class="montant-chip">' + formaterMontant(totauxParCategorie[categorie] * facteur) + ' <small>' + unite + '</small></span>';
+      chip.innerHTML = echapper(categorie) + ' <span class="montant-chip">' + formaterMontant(totauxParCategorie[categorie] * facteur) + '</span>';
       conteneur.appendChild(chip);
     });
 }
@@ -1179,21 +1243,52 @@ function trierPrelevements(colonne) {
 }
 
 // Montant affiché dans la colonne "Montant" selon le bascule mensuel/annuel.
-// N'a de sens que pour le mode "classique" (fréquence fixe connue) : une
-// échéance connue garde son montant brut, quel que soit le bascule.
+//
+// Mode "classique" : montant par échéance × fréquence, ramené au mois ou à
+// l'année (formule habituelle de lissage sur 12 mois).
+//
+// Mode "échéance connue" : montant total = nombre d'échéances × montant par
+// échéance. En vue "Annuel", on affiche ce montant total tel quel. En vue
+// "Mensuel", on le divise par le nombre de mois qu'il reste à provisionner
+// avant la dernière échéance connue (borné à 1 mois minimum, comme le fait
+// le backend, pour éviter une valeur qui explose sur une échéance imminente).
 function valeurMontantAffiche(prelevement) {
   const montant = Number(prelevement.montant_reference) || 0;
-  if (prelevement.mode !== 'classique') return montant;
+
+  if (prelevement.mode !== 'classique') {
+    const montantTotal = montant * nombreEcheancesTotal(prelevement);
+    return vueMontant === 'annuel' ? montantTotal : montantTotal / moisRestantsAProvisionner(prelevement);
+  }
+
   const frequence = Number(prelevement.nb_echeances_par_an) || 0;
   return vueMontant === 'annuel' ? montant * frequence : (montant * frequence) / 12;
 }
 
 function formaterMontantColonne(prelevement) {
-  const valeur = valeurMontantAffiche(prelevement);
-  if (prelevement.mode !== 'classique') {
-    return formaterMontant(valeur) + ' <span class="unite-montant">/éch.</span>';
+  return formaterMontant(valeurMontantAffiche(prelevement));
+}
+
+// Nombre total d'échéances d'une ligne "échéance connue" : le nombre saisi
+// s'il est renseigné, sinon déduit de l'écart entre les deux dates connues,
+// sinon une échéance unique — même logique que genererEcheances() côté backend.
+function nombreEcheancesTotal(prelevement) {
+  if (prelevement.nb_echeances_total) return Number(prelevement.nb_echeances_total);
+  if (prelevement.date_premiere_echeance && prelevement.date_derniere_echeance) {
+    const debut = new Date(prelevement.date_premiere_echeance + 'T00:00:00');
+    const fin = new Date(prelevement.date_derniere_echeance + 'T00:00:00');
+    return (fin.getFullYear() - debut.getFullYear()) * 12 + (fin.getMonth() - debut.getMonth()) + 1;
   }
-  return formaterMontant(valeur) + ' <span class="unite-montant">/' + (vueMontant === 'annuel' ? 'an' : 'mois') + '</span>';
+  return 1;
+}
+
+// Nombre de mois restant, à partir d'aujourd'hui, jusqu'à la dernière
+// échéance connue (ou l'échéance unique si une seule) — borné à 1 minimum.
+function moisRestantsAProvisionner(prelevement) {
+  const dateCible = prelevement.date_derniere_echeance || prelevement.date_premiere_echeance;
+  if (!dateCible) return 1;
+  const cible = new Date(dateCible + 'T00:00:00');
+  const joursRestants = (cible - new Date()) / (1000 * 60 * 60 * 24);
+  return Math.max(1, joursRestants / 30.44); // 30,44 jours/mois, même moyenne que le backend
 }
 
 // Pictogramme visuel devant la fréquence : un petit "camembert" dont la
@@ -1219,10 +1314,15 @@ function libelleFrequence(frequence) {
 }
 
 function formaterEcheanceConnue(prelevement) {
-  let texte = 'dès le ' + formaterDateAffichage(prelevement.date_premiere_echeance);
-  if (prelevement.date_derniere_echeance) texte += ' → ' + formaterDateAffichage(prelevement.date_derniere_echeance);
-  else if (prelevement.nb_echeances_total) texte += ' (' + prelevement.nb_echeances_total + ' échéances)';
-  return texte;
+  if (!prelevement.date_premiere_echeance) return '—';
+
+  // Échéance unique : première et dernière date confondues.
+  if (!prelevement.date_derniere_echeance || prelevement.date_derniere_echeance === prelevement.date_premiere_echeance) {
+    return 'le ' + formaterDateAffichage(prelevement.date_premiere_echeance);
+  }
+
+  const nombre = prelevement.nb_echeances_total ? ' (' + prelevement.nb_echeances_total + ' échéances)' : '';
+  return formaterDateAffichage(prelevement.date_premiere_echeance) + ' → ' + formaterDateAffichage(prelevement.date_derniere_echeance) + nombre;
 }
 
 function creerBoutonAction(type, prelevement) {
@@ -1280,6 +1380,12 @@ function ouvrirModaleAjout() {
   document.getElementById('titre-modale').textContent = 'Ajouter un prélèvement';
   document.getElementById('formulaire-prelevement').reset();
   changerModeFormulaire('classique');
+
+  // Un champ de date vide, prêt à l'emploi si l'utilisateur bascule ensuite
+  // vers le mode "échéance connue".
+  viderListeDatesManuelles();
+  ajouterChampDate();
+
   document.getElementById('fond-modale').classList.add('visible');
 }
 
@@ -1294,18 +1400,112 @@ function ouvrirModaleModification(prelevement) {
 
   changerModeFormulaire(prelevement.mode);
 
+  viderListeDatesManuelles();
+
   if (prelevement.mode === 'classique') {
     document.getElementById('champ-montant-classique').value = prelevement.montant_reference || '';
     document.getElementById('champ-frequence').value = prelevement.nb_echeances_par_an || '';
     document.getElementById('champ-date-debut').value = prelevement.date_debut || '';
+    ajouterChampDate(); // liste prête si l'utilisateur bascule vers "Échéance connue"
   } else {
     document.getElementById('champ-montant-echeance').value = prelevement.montant_reference || '';
-    document.getElementById('champ-premiere-echeance').value = prelevement.date_premiere_echeance || '';
-    document.getElementById('champ-derniere-echeance').value = prelevement.date_derniere_echeance || '';
-    document.getElementById('champ-nb-total').value = prelevement.nb_echeances_total || '';
+
+    // On reconstruit la liste de dates éditable à partir de ce qui est
+    // enregistré : la liste explicite si elle existe, sinon (anciennes
+    // lignes) la première échéance connue à titre de point de départ.
+    const datesExistantes = String(prelevement.dates_echeances || '')
+      .split(';')
+      .map(function (texte) { return texte.trim(); })
+      .filter(function (texte) { return texte.length > 0; });
+
+    if (datesExistantes.length > 0) {
+      datesExistantes.forEach(function (date) { ajouterChampDate(date); });
+    } else if (prelevement.date_premiere_echeance) {
+      ajouterChampDate(prelevement.date_premiere_echeance);
+    } else {
+      ajouterChampDate();
+    }
   }
 
   document.getElementById('fond-modale').classList.add('visible');
+}
+
+// ============================================================================
+// LISTE DE DATES D'ÉCHÉANCE (mode "échéance connue")
+// ============================================================================
+
+let compteurChampsDate = 0; // pour générer des id uniques aux champs de dates
+
+// Ajoute un nouveau champ de date à la liste (vide, ou pré-rempli avec
+// "valeur" si fournie — utilisé aussi bien par le bouton "+ Ajouter une
+// date" que pour repeupler le formulaire en mode modification).
+function ajouterChampDate(valeur) {
+  const conteneur = document.getElementById('liste-dates-manuelles');
+  const id = 'date-manuelle-' + (compteurChampsDate++);
+
+  const ligne = document.createElement('div');
+  ligne.className = 'ligne-date-manuelle';
+  ligne.innerHTML =
+    '<input type="date" id="' + id + '" value="' + (valeur || '') + '">' +
+    '<button type="button" class="bouton-mini danger" title="Retirer cette date">' +
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+    '</button>';
+
+  ligne.querySelector('button').onclick = function () { ligne.remove(); };
+  conteneur.appendChild(ligne);
+}
+
+function viderListeDatesManuelles() {
+  document.getElementById('liste-dates-manuelles').innerHTML = '';
+}
+
+// Génère une série d'échéances régulières espacées d'un nombre entier de
+// mois, et remplace la liste de dates manuelles par le résultat (que
+// l'utilisateur peut ensuite ajuster librement). Deux façons de borner la
+// série : un nombre d'échéances, ou une date de fin — si les deux sont
+// vides, une échéance unique est générée.
+function genererSerieReguliere() {
+  const debut = document.getElementById('champ-serie-debut').value;
+  const espacement = parseInt(document.getElementById('champ-serie-espacement').value, 10) || 1;
+  const nombre = parseInt(document.getElementById('champ-serie-nombre').value, 10) || 0;
+  const fin = document.getElementById('champ-serie-fin').value;
+
+  if (!debut) {
+    afficherErreur('Renseigne la date de la 1ère échéance avant de générer la série.');
+    return;
+  }
+
+  const dates = [];
+  const dateDebut = new Date(debut + 'T00:00:00');
+
+  if (nombre > 0) {
+    for (let i = 0; i < nombre; i++) {
+      const date = new Date(dateDebut);
+      date.setMonth(date.getMonth() + i * espacement);
+      dates.push(date);
+    }
+  } else if (fin) {
+    const dateFin = new Date(fin + 'T00:00:00');
+    let date = new Date(dateDebut);
+    while (date <= dateFin) {
+      dates.push(new Date(date));
+      date.setMonth(date.getMonth() + espacement);
+    }
+    if (dates.length === 0) dates.push(dateDebut);
+  } else {
+    dates.push(dateDebut);
+  }
+
+  viderListeDatesManuelles();
+  dates.forEach(function (date) { ajouterChampDate(formaterDateISO(date)); });
+  afficherToast(dates.length + ' échéance(s) générée(s) — vérifie la liste ci-dessous avant d\'enregistrer.');
+}
+
+function formaterDateISO(date) {
+  const annee = date.getFullYear();
+  const mois = String(date.getMonth() + 1).padStart(2, '0');
+  const jour = String(date.getDate()).padStart(2, '0');
+  return annee + '-' + mois + '-' + jour;
 }
 
 function fermerModale() {
@@ -1336,7 +1536,8 @@ async function soumettreFormulaire(evenement) {
     date_debut: '',
     date_premiere_echeance: '',
     date_derniere_echeance: '',
-    nb_echeances_total: ''
+    nb_echeances_total: '',
+    dates_echeances: ''
   };
 
   if (modeFormulaireActuel === 'classique') {
@@ -1345,13 +1546,24 @@ async function soumettreFormulaire(evenement) {
     donnees.date_debut = document.getElementById('champ-date-debut').value;
   } else {
     donnees.montant_reference = Number(document.getElementById('champ-montant-echeance').value) || 0;
-    donnees.date_premiere_echeance = document.getElementById('champ-premiere-echeance').value;
-    donnees.date_derniere_echeance = document.getElementById('champ-derniere-echeance').value;
-    donnees.nb_echeances_total = document.getElementById('champ-nb-total').value ? Number(document.getElementById('champ-nb-total').value) : '';
-    if (!donnees.date_premiere_echeance) {
-      afficherErreur('La date de la 1ère échéance est obligatoire en mode "échéance connue".');
+
+    // La liste de dates éditable est la seule source de vérité envoyée au
+    // backend : qu'elle vienne du générateur de série régulière ou d'une
+    // saisie manuelle disparate, le résultat est le même champ "dates_echeances".
+    const datesSaisies = Array.from(document.querySelectorAll('#liste-dates-manuelles input[type="date"]'))
+      .map(function (champ) { return champ.value; })
+      .filter(function (valeur) { return !!valeur; })
+      .sort();
+
+    if (datesSaisies.length === 0) {
+      afficherErreur('Renseigne au moins une date d\'échéance (ou génère une série régulière ci-dessus).');
       return;
     }
+
+    donnees.dates_echeances = datesSaisies.join(';');
+    donnees.date_premiere_echeance = datesSaisies[0];
+    donnees.date_derniere_echeance = datesSaisies[datesSaisies.length - 1];
+    donnees.nb_echeances_total = datesSaisies.length;
   }
 
   try {
