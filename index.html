@@ -203,6 +203,20 @@
     color: #fff;
   }
 
+  /* Petit bouton de bascule intégré à l'étiquette d'une colonne (ex. la
+     colonne "Montant" de l'onglet Prélèvements, qui a son propre bascule
+     indépendant du Mensuel/Annuel du tableau de bord). */
+  .bouton-bascule-colonne {
+    background: none;
+    border: none;
+    padding: 2px;
+    margin: 0 2px;
+    vertical-align: middle;
+    color: var(--texte-attenue);
+    display: inline-flex;
+  }
+  .bouton-bascule-colonne:hover { color: var(--primaire); }
+
   nav.onglets button {
     border: none;
     background: var(--surface);
@@ -799,7 +813,7 @@
               <th class="triable" onclick="trierPrelevements('categorie')">Catégorie <span class="fleche-tri" data-col="categorie">⇅</span></th>
               <th class="triable" onclick="trierPrelevements('date')">Date <span class="fleche-tri" data-col="date">⇅</span></th>
               <th class="triable" onclick="trierPrelevements('mode')">Mode <span class="fleche-tri" data-col="mode">⇅</span></th>
-              <th class="triable" onclick="trierPrelevements('montant')"><span id="entete-montant-prelevements">Montant mensuel</span> <span class="fleche-tri" data-col="montant">⇅</span></th>
+              <th class="triable" onclick="trierPrelevements('montant')"><span id="entete-montant-prelevements">Montant / échéance</span> <button type="button" class="bouton-bascule-colonne" onclick="basculerVueMontantPrelevements(event)" title="Basculer entre le montant de l'échéance et le total annuel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button> <span class="fleche-tri" data-col="montant">⇅</span></th>
               <th class="triable" onclick="trierPrelevements('frequence')">Fréquence / échéances <span class="fleche-tri" data-col="frequence">⇅</span></th>
               <th></th>
             </tr>
@@ -939,7 +953,8 @@ let prelevementsActuels = [];
 let modeFormulaireActuel = 'classique';
 let idEnEdition = null; // null = ajout, sinon = id du prélèvement en cours de modification
 
-let vueMontant = 'mensuel'; // 'mensuel' ou 'annuel' — bascule d'affichage globale
+let vueMontant = 'mensuel'; // 'mensuel' ou 'annuel' — bascule du tableau de bord uniquement
+let vueMontantPrelevements = 'echeance'; // 'echeance' ou 'annuel' — bascule locale à la colonne "Montant" de l'onglet Prélèvements
 let dernierDetailProvisions = []; // cache du dernier calcul, pour re-trier sans rappeler l'API
 let etatTriDetail = { colonne: null, sens: 1 }; // tri courant du tableau de bord
 let etatTriPrelevements = { colonne: null, sens: 1 }; // tri courant du tableau des prélèvements
@@ -1058,9 +1073,18 @@ function changerPeriodeAffichage(periode) {
     bouton.classList.toggle('actif', bouton.dataset.periode === periode);
   });
   document.getElementById('entete-provision').textContent = periode === 'annuel' ? 'Provision annuelle' : 'Provision mensuelle';
-  document.getElementById('entete-montant-prelevements').textContent = periode === 'annuel' ? 'Montant annuel' : 'Montant mensuel';
   remplirTableauDetail(dernierDetailProvisions);
   remplirRepartitionCategories(dernierDetailProvisions);
+}
+
+// Bascule locale à la colonne "Montant" de l'onglet Prélèvements, entre le
+// montant d'une échéance et le total annuel que ça représente — indépendante
+// du bascule Mensuel/Annuel du tableau de bord.
+function basculerVueMontantPrelevements(evenement) {
+  if (evenement) evenement.stopPropagation(); // ne pas déclencher le tri de la colonne au passage
+  vueMontantPrelevements = vueMontantPrelevements === 'echeance' ? 'annuel' : 'echeance';
+  document.getElementById('entete-montant-prelevements').textContent =
+    vueMontantPrelevements === 'annuel' ? 'Total annuel' : 'Montant / échéance';
   remplirTableauPrelevements(prelevementsActuels);
 }
 
@@ -1070,6 +1094,11 @@ function changerOnglet(nomOnglet) {
   });
   document.getElementById('panneau-tableau-bord').classList.toggle('actif', nomOnglet === 'tableau-bord');
   document.getElementById('panneau-prelevements').classList.toggle('actif', nomOnglet === 'prelevements');
+
+  // Le bascule Mensuel/Annuel ne concerne que le tableau de bord (provision
+  // et répartition par catégorie) : pas d'utilité dans l'onglet Prélèvements,
+  // qui a son propre bascule local sur la colonne "Montant".
+  document.querySelector('.toggle-periode').style.display = nomOnglet === 'tableau-bord' ? 'flex' : 'none';
 }
 
 /* ============================================================================
@@ -1242,26 +1271,21 @@ function trierPrelevements(colonne) {
   remplirTableauPrelevements(prelevementsActuels);
 }
 
-// Montant affiché dans la colonne "Montant" selon le bascule mensuel/annuel.
-//
-// Mode "classique" : montant par échéance × fréquence, ramené au mois ou à
-// l'année (formule habituelle de lissage sur 12 mois).
-//
-// Mode "échéance connue" : montant total = nombre d'échéances × montant par
-// échéance. En vue "Annuel", on affiche ce montant total tel quel. En vue
-// "Mensuel", on le divise par le nombre de mois qu'il reste à provisionner
-// avant la dernière échéance connue (borné à 1 mois minimum, comme le fait
-// le backend, pour éviter une valeur qui explose sur une échéance imminente).
+// Montant affiché dans la colonne "Montant" de l'onglet Prélèvements, selon
+// son propre bascule local (vueMontantPrelevements) :
+// - "echeance" (par défaut) : le montant brut d'une échéance, tel que saisi
+//   dans montant_reference — identique pour les deux modes.
+// - "annuel" : le total que cela représente sur l'année pour le mode
+//   classique (montant × fréquence), ou le total de toutes les échéances
+//   pour le mode "échéance connue" (montant × nombre d'échéances).
 function valeurMontantAffiche(prelevement) {
   const montant = Number(prelevement.montant_reference) || 0;
+  if (vueMontantPrelevements === 'echeance') return montant;
 
-  if (prelevement.mode !== 'classique') {
-    const montantTotal = montant * nombreEcheancesTotal(prelevement);
-    return vueMontant === 'annuel' ? montantTotal : montantTotal / moisRestantsAProvisionner(prelevement);
+  if (prelevement.mode === 'classique') {
+    return montant * (Number(prelevement.nb_echeances_par_an) || 0);
   }
-
-  const frequence = Number(prelevement.nb_echeances_par_an) || 0;
-  return vueMontant === 'annuel' ? montant * frequence : (montant * frequence) / 12;
+  return montant * nombreEcheancesTotal(prelevement);
 }
 
 function formaterMontantColonne(prelevement) {
@@ -1279,16 +1303,6 @@ function nombreEcheancesTotal(prelevement) {
     return (fin.getFullYear() - debut.getFullYear()) * 12 + (fin.getMonth() - debut.getMonth()) + 1;
   }
   return 1;
-}
-
-// Nombre de mois restant, à partir d'aujourd'hui, jusqu'à la dernière
-// échéance connue (ou l'échéance unique si une seule) — borné à 1 minimum.
-function moisRestantsAProvisionner(prelevement) {
-  const dateCible = prelevement.date_derniere_echeance || prelevement.date_premiere_echeance;
-  if (!dateCible) return 1;
-  const cible = new Date(dateCible + 'T00:00:00');
-  const joursRestants = (cible - new Date()) / (1000 * 60 * 60 * 24);
-  return Math.max(1, joursRestants / 30.44); // 30,44 jours/mois, même moyenne que le backend
 }
 
 // Pictogramme visuel devant la fréquence : un petit "camembert" dont la
