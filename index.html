@@ -1249,6 +1249,7 @@ function remplirTableauPrelevements(liste) {
 
     const celluleActions = tr.querySelector('.actions-ligne');
     celluleActions.appendChild(creerBoutonAction('modifier', prelevement));
+    celluleActions.appendChild(creerBoutonAction('dupliquer', prelevement));
     if (prelevement.actif) {
       celluleActions.appendChild(creerBoutonAction('desactiver', prelevement));
     } else {
@@ -1344,6 +1345,7 @@ function creerBoutonAction(type, prelevement) {
   bouton.className = 'bouton-mini';
   const icones = {
     modifier: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+    dupliquer: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
     desactiver: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>',
     reactiver: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
   };
@@ -1352,6 +1354,9 @@ function creerBoutonAction(type, prelevement) {
   if (type === 'modifier') {
     bouton.title = 'Modifier';
     bouton.onclick = function () { ouvrirModaleModification(prelevement); };
+  } else if (type === 'dupliquer') {
+    bouton.title = 'Dupliquer';
+    bouton.onclick = function () { ouvrirModaleDuplication(prelevement); };
   } else if (type === 'desactiver') {
     bouton.classList.add('danger');
     bouton.title = 'Désactiver';
@@ -1407,8 +1412,29 @@ function ouvrirModaleModification(prelevement) {
   idEnEdition = prelevement.id;
   document.getElementById('titre-modale').textContent = 'Modifier « ' + prelevement.nom_crediteur + ' »';
   document.getElementById('formulaire-prelevement').reset();
+  remplirFormulaireDepuisPrelevement(prelevement, prelevement.nom_crediteur || '');
+  document.getElementById('fond-modale').classList.add('visible');
+}
 
-  document.getElementById('champ-nom').value = prelevement.nom_crediteur || '';
+// Ouvre la modale, en mode "ajout" (idEnEdition = null), pré-remplie avec les
+// valeurs d'un prélèvement existant : pratique pour créer rapidement une
+// variante (ex. un second contrat similaire) sans tout ressaisir à la main.
+// Le nom est suffixé " (copie)" pour que Charles pense bien à le personnaliser
+// avant d'enregistrer, plutôt que de se retrouver avec deux lignes identiques.
+function ouvrirModaleDuplication(prelevement) {
+  idEnEdition = null;
+  document.getElementById('titre-modale').textContent = 'Dupliquer « ' + prelevement.nom_crediteur + ' »';
+  document.getElementById('formulaire-prelevement').reset();
+  remplirFormulaireDepuisPrelevement(prelevement, (prelevement.nom_crediteur || '') + ' (copie)');
+  document.getElementById('fond-modale').classList.add('visible');
+}
+
+// Remplit les champs du formulaire (créditeur, catégorie, notes, mode et
+// tous les champs propres au mode) à partir d'un prélèvement existant.
+// Factorisé entre la modification (id conservé) et la duplication (id
+// remis à zéro, nom suffixé) pour ne pas dupliquer cette logique de recopie.
+function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
+  document.getElementById('champ-nom').value = nomAffiche;
   document.getElementById('champ-categorie').value = prelevement.categorie || '';
   document.getElementById('champ-notes').value = prelevement.notes || '';
 
@@ -1440,8 +1466,6 @@ function ouvrirModaleModification(prelevement) {
       ajouterChampDate();
     }
   }
-
-  document.getElementById('fond-modale').classList.add('visible');
 }
 
 // ============================================================================
