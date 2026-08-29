@@ -874,15 +874,21 @@
             <input type="number" step="0.01" min="0" id="champ-montant-classique">
           </div>
           <div class="champ">
-            <label for="champ-frequence">Échéances par an</label>
-            <input type="number" step="1" min="1" id="champ-frequence" placeholder="ex. 12">
+            <label for="champ-espacement-classique">Tous les combien de mois</label>
+            <input type="number" step="1" min="1" value="1" id="champ-espacement-classique">
           </div>
         </div>
         <div class="champ">
           <label for="champ-date-debut">Date de début (facultatif)</label>
           <input type="date" id="champ-date-debut">
         </div>
-        <p class="champ aide">Provision mensuelle = montant × échéances par an ÷ 12. Exemples : 12 (mensuel), 4 (trimestriel), 2 (semestriel), 1 (annuel).</p>
+        <div class="champ">
+          <label class="case-toggle">
+            <input type="checkbox" id="champ-fin-mois">
+            Caler sur la fin de chaque mois (un jour "30" ou "31" devient le dernier jour du mois, y compris en février)
+          </label>
+        </div>
+        <p class="champ aide">Provision mensuelle = montant ÷ espacement en mois. Exemples : 1 (mensuel), 3 (trimestriel), 6 (semestriel), 12 (annuel).</p>
       </div>
 
       <!-- Champs spécifiques au mode "échéance connue" -->
@@ -1338,7 +1344,7 @@ function remplirTableauPrelevements(liste) {
     date: function (p) { return cleTriDate(p); },
     mode: function (p) { return p.mode || ''; },
     montant: function (p) { return valeurMontantAffiche(p); },
-    frequence: function (p) { return p.mode === 'classique' ? (Number(p.nb_echeances_par_an) || 0) : 9999; }
+    frequence: function (p) { return p.mode === 'classique' ? frequenceEquivalente(p) : 9999; }
   }, 'nom_crediteur', 1);
 
   listeTriee.forEach(function (prelevement) {
@@ -1346,7 +1352,7 @@ function remplirTableauPrelevements(liste) {
     if (!prelevement.actif) tr.classList.add('ligne-inactive');
 
     const colonneFrequence = pictogrammeFrequence(prelevement) + (prelevement.mode === 'classique'
-      ? (prelevement.nb_echeances_par_an ? prelevement.nb_echeances_par_an + 'x / an' : '—')
+      ? libelleFrequence(espacementEquivalent(prelevement))
       : formaterEcheanceConnue(prelevement));
 
     tr.innerHTML =
@@ -1395,13 +1401,33 @@ function valeurMontantAffiche(prelevement) {
   if (vueMontantPrelevements === 'echeance') return montant;
 
   if (prelevement.mode === 'classique') {
-    return montant * (Number(prelevement.nb_echeances_par_an) || 0);
+    return montant * frequenceEquivalente(prelevement);
   }
   return montant * nombreEcheancesTotal(prelevement);
 }
 
 function formaterMontantColonne(prelevement) {
   return formaterMontant(valeurMontantAffiche(prelevement), prelevement.devise);
+}
+
+// Espacement en mois entre deux échéances d'une ligne "classique" : le champ
+// espacement_mois s'il est renseigné, sinon déduit de l'ancien champ
+// nb_echeances_par_an (12 ÷ fréquence) pour les lignes historiques, sinon
+// mensuel par défaut.
+function espacementEquivalent(prelevement) {
+  const espacement = Number(prelevement.espacement_mois) || 0;
+  if (espacement > 0) return espacement;
+  const frequence = Number(prelevement.nb_echeances_par_an) || 0;
+  return frequence > 0 ? 12 / frequence : 1;
+}
+
+// Nombre d'échéances par an équivalent à cet espacement — utilisé pour le
+// tri par fréquence et le total annuel, comme avant le remodelage du
+// formulaire "classique" (qui raisonne maintenant en espacement plutôt
+// qu'en nombre d'échéances par an).
+function frequenceEquivalente(prelevement) {
+  const espacement = espacementEquivalent(prelevement);
+  return espacement > 0 ? 12 / espacement : 0;
 }
 
 // Nombre total d'échéances d'une ligne "échéance connue" : le nombre saisi
@@ -1425,18 +1451,21 @@ function pictogrammeFrequence(prelevement) {
   if (prelevement.mode !== 'classique') {
     return '<svg class="icone-frequence" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>';
   }
-  const frequence = Number(prelevement.nb_echeances_par_an) || 0;
-  const fraction = frequence > 0 ? Math.min(1, 1 / frequence) : 0;
+  // La portion remplie représente la fraction de l'année entre deux
+  // échéances : espacement ÷ 12 (1 mois → fine tranche, 12 mois → cercle
+  // plein) — plus besoin de passer par la fréquence annuelle pour ce calcul.
+  const espacement = espacementEquivalent(prelevement);
+  const fraction = Math.min(1, espacement / 12);
   const degres = Math.round(fraction * 360);
-  return '<span class="camembert-frequence" title="' + libelleFrequence(frequence) + '" style="background: conic-gradient(var(--primaire) 0deg ' + degres + 'deg, #e3e9f3 ' + degres + 'deg 360deg);"></span>';
+  return '<span class="camembert-frequence" title="' + libelleFrequence(espacement) + '" style="background: conic-gradient(var(--primaire) 0deg ' + degres + 'deg, #e3e9f3 ' + degres + 'deg 360deg);"></span>';
 }
 
-function libelleFrequence(frequence) {
-  if (frequence === 12) return 'Mensuel';
-  if (frequence === 4) return 'Trimestriel';
-  if (frequence === 2) return 'Semestriel';
-  if (frequence === 1) return 'Annuel';
-  return frequence + 'x par an';
+function libelleFrequence(espacementMois) {
+  if (espacementMois === 1) return 'Mensuel';
+  if (espacementMois === 3) return 'Trimestriel';
+  if (espacementMois === 6) return 'Semestriel';
+  if (espacementMois === 12) return 'Annuel';
+  return 'Tous les ' + espacementMois + ' mois';
 }
 
 function formaterEcheanceConnue(prelevement) {
@@ -1509,6 +1538,8 @@ function ouvrirModaleAjout() {
   idEnEdition = null;
   document.getElementById('titre-modale').textContent = 'Ajouter un prélèvement';
   document.getElementById('formulaire-prelevement').reset();
+  document.getElementById('champ-espacement-classique').value = '1';
+  document.getElementById('champ-fin-mois').checked = false;
   changerModeFormulaire('classique');
 
   // Un champ de date vide, prêt à l'emploi si l'utilisateur bascule ensuite
@@ -1556,8 +1587,9 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
 
   if (prelevement.mode === 'classique') {
     document.getElementById('champ-montant-classique').value = prelevement.montant_reference || '';
-    document.getElementById('champ-frequence').value = prelevement.nb_echeances_par_an || '';
+    document.getElementById('champ-espacement-classique').value = espacementEquivalent(prelevement);
     document.getElementById('champ-date-debut').value = prelevement.date_debut || '';
+    document.getElementById('champ-fin-mois').checked = !!prelevement.fin_de_mois;
     ajouterChampDate(); // liste prête si l'utilisateur bascule vers "Échéance connue"
   } else {
     document.getElementById('champ-montant-echeance').value = prelevement.montant_reference || '';
@@ -1684,6 +1716,8 @@ async function soumettreFormulaire(evenement) {
     notes: document.getElementById('champ-notes').value.trim(),
     montant_reference: '',
     nb_echeances_par_an: '',
+    espacement_mois: '',
+    fin_de_mois: '',
     date_debut: '',
     date_premiere_echeance: '',
     date_derniere_echeance: '',
@@ -1693,8 +1727,13 @@ async function soumettreFormulaire(evenement) {
 
   if (modeFormulaireActuel === 'classique') {
     donnees.montant_reference = Number(document.getElementById('champ-montant-classique').value) || 0;
-    donnees.nb_echeances_par_an = Number(document.getElementById('champ-frequence').value) || 0;
+    const espacementMois = Number(document.getElementById('champ-espacement-classique').value) || 1;
+    donnees.espacement_mois = espacementMois;
+    // nb_echeances_par_an reste renseigné en parallèle, par cohérence avec les
+    // lignes historiques et pour rester lisible directement dans la Sheet.
+    donnees.nb_echeances_par_an = Math.round((12 / espacementMois) * 100) / 100;
     donnees.date_debut = document.getElementById('champ-date-debut').value;
+    donnees.fin_de_mois = document.getElementById('champ-fin-mois').checked ? 'oui' : 'non';
   } else {
     donnees.montant_reference = Number(document.getElementById('champ-montant-echeance').value) || 0;
 
@@ -1768,9 +1807,10 @@ function formaterColonneDate(prelevement) {
   if (!prelevement) return '—';
 
   if (prelevement.mode === 'classique') {
+    if (prelevement.fin_de_mois) return 'Fin de mois';
     if (!prelevement.date_debut) return '—';
     const date = new Date(prelevement.date_debut + 'T00:00:00');
-    if (Number(prelevement.nb_echeances_par_an) === 12) return String(date.getDate());
+    if (espacementEquivalent(prelevement) === 1) return String(date.getDate());
     return String(date.getDate()).padStart(2, '0') + '/' + String(date.getMonth() + 1).padStart(2, '0');
   }
 
