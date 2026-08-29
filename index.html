@@ -125,6 +125,20 @@
 
   .entete h1 { font-size: 21px; }
 
+  /* Petite mention discrète de la version en cours, à côté du titre — sert de
+     repère pour savoir si la version en prod (Sheet/GitHub Pages) est bien
+     celle proposée en dernier. Voir la constante VERSION_APP plus bas. */
+  .badge-version {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--texte-attenue);
+    background: var(--surface-douce);
+    border: 1px solid var(--bordure);
+    border-radius: 999px;
+    padding: 2px 10px;
+    white-space: nowrap;
+  }
+
   .profil-utilisateur {
     display: flex;
     align-items: center;
@@ -588,6 +602,19 @@
     background: var(--surface-douce);
   }
 
+  /* Champ désactivé (ex. "Date de début" quand "Dernier jour du mois" est
+     coché) : visuellement estompé, pour signaler qu'il ne sert plus. */
+  .champ input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Aligne verticalement la case "Dernier jour du mois" avec le champ date
+     placé juste à côté (qui a un label au-dessus, contrairement à la case). */
+  .case-toggle-fin-mois {
+    margin-top: 30px;
+  }
+
   .champ input:focus, .champ select:focus, .champ textarea:focus {
     outline: none;
     border-color: var(--primaire);
@@ -715,6 +742,7 @@
     <div class="titre-appli">
       <span class="emoji">💧</span>
       <h1>Provisions Revolut</h1>
+      <span class="badge-version" id="badge-version"></span>
     </div>
     <div class="profil-utilisateur">
       <img id="photo-utilisateur" src="" alt="">
@@ -870,7 +898,7 @@
       <div id="bloc-classique">
         <div class="ligne-deux-champs">
           <div class="champ">
-            <label for="champ-montant-classique">Montant par échéance (€)</label>
+            <label for="champ-montant-classique" id="label-montant-classique">Montant par échéance (€)</label>
             <input type="number" step="0.01" min="0" id="champ-montant-classique">
           </div>
           <div class="champ">
@@ -878,23 +906,28 @@
             <input type="number" step="1" min="1" value="1" id="champ-espacement-classique">
           </div>
         </div>
-        <div class="champ">
-          <label for="champ-date-debut">Date de début (facultatif)</label>
-          <input type="date" id="champ-date-debut">
+        <div class="ligne-deux-champs">
+          <div class="champ">
+            <label for="champ-date-debut">Date de début</label>
+            <input type="date" id="champ-date-debut">
+          </div>
+          <div class="champ">
+            <!-- Cochée : la date ci-contre est vidée et désactivée, puisqu'elle
+                 ne signifie plus rien — l'échéance tombe alors sur le dernier
+                 jour de chaque mois, quel que soit le nombre de jours qu'il compte. -->
+            <label class="case-toggle case-toggle-fin-mois">
+              <input type="checkbox" id="champ-fin-mois" onchange="basculerChampFinDeMois()">
+              Dernier jour du mois
+            </label>
+          </div>
         </div>
-        <div class="champ">
-          <label class="case-toggle">
-            <input type="checkbox" id="champ-fin-mois">
-            Caler sur la fin de chaque mois (un jour "30" ou "31" devient le dernier jour du mois, y compris en février)
-          </label>
-        </div>
-        <p class="champ aide">Provision mensuelle = montant ÷ espacement en mois. Exemples : 1 (mensuel), 3 (trimestriel), 6 (semestriel), 12 (annuel).</p>
+        <p class="champ aide">Provision mensuelle = montant ÷ espacement en mois. Exemples : 1 (mensuel), 3 (trimestriel), 6 (semestriel), 12 (annuel). Une date de début décochée "Dernier jour du mois" (ex. le 31) reste valable même les mois plus courts : l'appli s'aligne alors sur le dernier jour disponible de ce mois-là.</p>
       </div>
 
       <!-- Champs spécifiques au mode "échéance connue" -->
       <div id="bloc-echeance" style="display:none;">
         <div class="champ">
-          <label for="champ-montant-echeance">Montant par échéance (€)</label>
+          <label for="champ-montant-echeance" id="label-montant-echeance">Montant par échéance (€)</label>
           <input type="number" step="0.01" min="0" id="champ-montant-echeance">
         </div>
 
@@ -955,6 +988,13 @@
    ============================================================================ */
 const URL_API = 'https://script.google.com/macros/s/AKfycbwNQEg00Mu7_Cecm2stSQyOeoTzVW6OWwKrGLpgosHZSMhVwQTnV3etvIdy6wHOlhcZQw/exec';
 const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.googleusercontent.com';
+
+// Version de l'appli (frontend + backend livrés ensemble) — mise à jour à
+// chaque nouvelle version proposée à Charles, pour qu'il puisse vérifier
+// d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
+// bien à la dernière version reçue. Le backend expose la même valeur dans
+// ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
+const VERSION_APP = 'v0.5 — 29/08/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1074,7 +1114,45 @@ function initialiserListeDevises() {
     select.appendChild(option);
   });
 }
+
+// Extrait juste le symbole (ou, à défaut, le code) d'une devise à partir du
+// formatage monétaire du navigateur, plutôt que de maintenir à la main une
+// table de correspondance pour 154 monnaies. Repli sur le code lui-même si
+// le navigateur ne reconnaît pas la devise.
+function obtenirSymboleDevise(code) {
+  try {
+    const formate = (0).toLocaleString('fr-FR', { style: 'currency', currency: code, minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return formate.replace(/[\d,.\s]/g, '').trim() || code;
+  } catch (erreur) {
+    return code;
+  }
+}
+
+// Met à jour les étiquettes "Montant par échéance (...)" des deux modes du
+// formulaire pour refléter la devise actuellement sélectionnée, au lieu de
+// rester figées sur "€" quelle que soit la monnaie choisie.
+function mettreAJourLibellesMontant() {
+  const code = document.getElementById('champ-devise').value || DEVISE_PAR_DEFAUT;
+  const texte = 'Montant par échéance (' + obtenirSymboleDevise(code) + ')';
+  document.getElementById('label-montant-classique').textContent = texte;
+  document.getElementById('label-montant-echeance').textContent = texte;
+}
+
+// Quand "Dernier jour du mois" est cochée, la date de début ne veut plus
+// rien dire (l'échéance est justement le dernier jour du mois, quel qu'il
+// soit) : on la vide et on la désactive pour éviter toute confusion. On la
+// réactive normalement si la case est décochée.
+function basculerChampFinDeMois() {
+  const caseCochee = document.getElementById('champ-fin-mois').checked;
+  const champDate = document.getElementById('champ-date-debut');
+  champDate.disabled = caseCochee;
+  if (caseCochee) champDate.value = '';
+}
+
 initialiserListeDevises();
+mettreAJourLibellesMontant();
+document.getElementById('champ-devise').addEventListener('change', mettreAJourLibellesMontant);
+document.getElementById('badge-version').textContent = VERSION_APP;
 
 /* ============================================================================
    CONNEXION GOOGLE (Google Identity Services)
@@ -1540,6 +1618,8 @@ function ouvrirModaleAjout() {
   document.getElementById('formulaire-prelevement').reset();
   document.getElementById('champ-espacement-classique').value = '1';
   document.getElementById('champ-fin-mois').checked = false;
+  basculerChampFinDeMois(); // réactive le champ date s'il était resté désactivé d'une session précédente
+  mettreAJourLibellesMontant(); // la devise revient à EUR par défaut via reset()
   changerModeFormulaire('classique');
 
   // Un champ de date vide, prêt à l'emploi si l'utilisateur bascule ensuite
@@ -1579,6 +1659,7 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
   document.getElementById('champ-nom').value = nomAffiche;
   document.getElementById('champ-categorie').value = prelevement.categorie || '';
   document.getElementById('champ-devise').value = prelevement.devise || DEVISE_PAR_DEFAUT;
+  mettreAJourLibellesMontant();
   document.getElementById('champ-notes').value = prelevement.notes || '';
 
   changerModeFormulaire(prelevement.mode);
@@ -1590,6 +1671,7 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
     document.getElementById('champ-espacement-classique').value = espacementEquivalent(prelevement);
     document.getElementById('champ-date-debut').value = prelevement.date_debut || '';
     document.getElementById('champ-fin-mois').checked = !!prelevement.fin_de_mois;
+    basculerChampFinDeMois(); // synchronise l'état désactivé/vidé du champ date avec la case
     ajouterChampDate(); // liste prête si l'utilisateur bascule vers "Échéance connue"
   } else {
     document.getElementById('champ-montant-echeance').value = prelevement.montant_reference || '';
