@@ -858,6 +858,14 @@
         </datalist>
       </div>
 
+      <!-- Devise du montant saisi ci-dessous — commune aux deux modes, remplie
+           à l'ouverture de la page à partir de la liste DEVISES (ISO 4217). -->
+      <div class="champ">
+        <label for="champ-devise">Devise</label>
+        <select id="champ-devise"></select>
+        <p class="champ aide">Le montant est saisi dans cette devise. Le calcul de la provision totale ne convertit pas encore les devises étrangères en euros (à venir).</p>
+      </div>
+
       <!-- Champs spécifiques au mode "classique" -->
       <div id="bloc-classique">
         <div class="ligne-deux-champs">
@@ -942,6 +950,92 @@
 const URL_API = 'https://script.google.com/macros/s/AKfycbwNQEg00Mu7_Cecm2stSQyOeoTzVW6OWwKrGLpgosHZSMhVwQTnV3etvIdy6wHOlhcZQw/exec';
 const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.googleusercontent.com';
 
+// Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
+// prélèvements en devise étrangère restent des cas particuliers à signaler.
+const DEVISE_PAR_DEFAUT = 'EUR';
+
+// Liste des monnaies du monde (codes ISO 4217 actifs), pour le sélecteur
+// "Devise" du formulaire. Triée par code pour une recherche facile au clavier.
+const DEVISES = [
+  { code: 'AED', nom: 'Dirham des Émirats arabes unis' }, { code: 'AFN', nom: 'Afghani afghan' },
+  { code: 'ALL', nom: 'Lek albanais' }, { code: 'AMD', nom: 'Dram arménien' },
+  { code: 'ANG', nom: 'Florin antillais' }, { code: 'AOA', nom: 'Kwanza angolais' },
+  { code: 'ARS', nom: 'Peso argentin' }, { code: 'AUD', nom: 'Dollar australien' },
+  { code: 'AWG', nom: 'Florin arubais' }, { code: 'AZN', nom: 'Manat azerbaïdjanais' },
+  { code: 'BAM', nom: 'Mark convertible bosniaque' }, { code: 'BBD', nom: 'Dollar barbadien' },
+  { code: 'BDT', nom: 'Taka bangladais' }, { code: 'BGN', nom: 'Lev bulgare' },
+  { code: 'BHD', nom: 'Dinar bahreïni' }, { code: 'BIF', nom: 'Franc burundais' },
+  { code: 'BMD', nom: 'Dollar bermudien' }, { code: 'BND', nom: 'Dollar brunéien' },
+  { code: 'BOB', nom: 'Boliviano bolivien' }, { code: 'BRL', nom: 'Real brésilien' },
+  { code: 'BSD', nom: 'Dollar bahaméen' }, { code: 'BTN', nom: 'Ngultrum bhoutanais' },
+  { code: 'BWP', nom: 'Pula botswanais' }, { code: 'BYN', nom: 'Rouble biélorusse' },
+  { code: 'BZD', nom: 'Dollar bélizien' }, { code: 'CAD', nom: 'Dollar canadien' },
+  { code: 'CDF', nom: 'Franc congolais' }, { code: 'CHF', nom: 'Franc suisse' },
+  { code: 'CLP', nom: 'Peso chilien' }, { code: 'CNY', nom: 'Yuan chinois' },
+  { code: 'COP', nom: 'Peso colombien' }, { code: 'CRC', nom: 'Colón costaricien' },
+  { code: 'CUP', nom: 'Peso cubain' }, { code: 'CVE', nom: 'Escudo cap-verdien' },
+  { code: 'CZK', nom: 'Couronne tchèque' }, { code: 'DJF', nom: 'Franc djiboutien' },
+  { code: 'DKK', nom: 'Couronne danoise' }, { code: 'DOP', nom: 'Peso dominicain' },
+  { code: 'DZD', nom: 'Dinar algérien' }, { code: 'EGP', nom: 'Livre égyptienne' },
+  { code: 'ERN', nom: 'Nakfa érythréen' }, { code: 'ETB', nom: 'Birr éthiopien' },
+  { code: 'EUR', nom: 'Euro' }, { code: 'FJD', nom: 'Dollar fidjien' },
+  { code: 'FKP', nom: 'Livre des îles Malouines' }, { code: 'GBP', nom: 'Livre sterling' },
+  { code: 'GEL', nom: 'Lari géorgien' }, { code: 'GHS', nom: 'Cedi ghanéen' },
+  { code: 'GIP', nom: 'Livre de Gibraltar' }, { code: 'GMD', nom: 'Dalasi gambien' },
+  { code: 'GNF', nom: 'Franc guinéen' }, { code: 'GTQ', nom: 'Quetzal guatémaltèque' },
+  { code: 'GYD', nom: 'Dollar guyanien' }, { code: 'HKD', nom: 'Dollar de Hong Kong' },
+  { code: 'HNL', nom: 'Lempira hondurien' }, { code: 'HTG', nom: 'Gourde haïtienne' },
+  { code: 'HUF', nom: 'Forint hongrois' }, { code: 'IDR', nom: 'Roupie indonésienne' },
+  { code: 'ILS', nom: 'Shekel israélien' }, { code: 'INR', nom: 'Roupie indienne' },
+  { code: 'IQD', nom: 'Dinar irakien' }, { code: 'IRR', nom: 'Rial iranien' },
+  { code: 'ISK', nom: 'Couronne islandaise' }, { code: 'JMD', nom: 'Dollar jamaïcain' },
+  { code: 'JOD', nom: 'Dinar jordanien' }, { code: 'JPY', nom: 'Yen japonais' },
+  { code: 'KES', nom: 'Shilling kényan' }, { code: 'KGS', nom: 'Som kirghize' },
+  { code: 'KHR', nom: 'Riel cambodgien' }, { code: 'KMF', nom: 'Franc comorien' },
+  { code: 'KPW', nom: 'Won nord-coréen' }, { code: 'KRW', nom: 'Won sud-coréen' },
+  { code: 'KWD', nom: 'Dinar koweïtien' }, { code: 'KYD', nom: 'Dollar des îles Caïmans' },
+  { code: 'KZT', nom: 'Tenge kazakh' }, { code: 'LAK', nom: 'Kip laotien' },
+  { code: 'LBP', nom: 'Livre libanaise' }, { code: 'LKR', nom: 'Roupie srilankaise' },
+  { code: 'LRD', nom: 'Dollar libérien' }, { code: 'LSL', nom: 'Loti lesothan' },
+  { code: 'LYD', nom: 'Dinar libyen' }, { code: 'MAD', nom: 'Dirham marocain' },
+  { code: 'MDL', nom: 'Leu moldave' }, { code: 'MGA', nom: 'Ariary malgache' },
+  { code: 'MKD', nom: 'Denar macédonien' }, { code: 'MMK', nom: 'Kyat birman' },
+  { code: 'MNT', nom: 'Tugrik mongol' }, { code: 'MOP', nom: 'Pataca macanaise' },
+  { code: 'MRU', nom: 'Ouguiya mauritanien' }, { code: 'MUR', nom: 'Roupie mauricienne' },
+  { code: 'MVR', nom: 'Rufiyaa maldivienne' }, { code: 'MWK', nom: 'Kwacha malawite' },
+  { code: 'MXN', nom: 'Peso mexicain' }, { code: 'MYR', nom: 'Ringgit malaisien' },
+  { code: 'MZN', nom: 'Metical mozambicain' }, { code: 'NAD', nom: 'Dollar namibien' },
+  { code: 'NGN', nom: 'Naira nigérian' }, { code: 'NIO', nom: 'Córdoba nicaraguayen' },
+  { code: 'NOK', nom: 'Couronne norvégienne' }, { code: 'NPR', nom: 'Roupie népalaise' },
+  { code: 'NZD', nom: 'Dollar néo-zélandais' }, { code: 'OMR', nom: 'Rial omanais' },
+  { code: 'PAB', nom: 'Balboa panaméen' }, { code: 'PEN', nom: 'Sol péruvien' },
+  { code: 'PGK', nom: 'Kina papouasien' }, { code: 'PHP', nom: 'Peso philippin' },
+  { code: 'PKR', nom: 'Roupie pakistanaise' }, { code: 'PLN', nom: 'Zloty polonais' },
+  { code: 'PYG', nom: 'Guaraní paraguayen' }, { code: 'QAR', nom: 'Riyal qatari' },
+  { code: 'RON', nom: 'Leu roumain' }, { code: 'RSD', nom: 'Dinar serbe' },
+  { code: 'RUB', nom: 'Rouble russe' }, { code: 'RWF', nom: 'Franc rwandais' },
+  { code: 'SAR', nom: 'Riyal saoudien' }, { code: 'SBD', nom: 'Dollar des îles Salomon' },
+  { code: 'SCR', nom: 'Roupie seychelloise' }, { code: 'SDG', nom: 'Livre soudanaise' },
+  { code: 'SEK', nom: 'Couronne suédoise' }, { code: 'SGD', nom: 'Dollar de Singapour' },
+  { code: 'SHP', nom: 'Livre de Sainte-Hélène' }, { code: 'SLE', nom: 'Leone sierra-léonais' },
+  { code: 'SOS', nom: 'Shilling somalien' }, { code: 'SRD', nom: 'Dollar surinamien' },
+  { code: 'SSP', nom: 'Livre sud-soudanaise' }, { code: 'STN', nom: 'Dobra santoméen' },
+  { code: 'SYP', nom: 'Livre syrienne' }, { code: 'SZL', nom: 'Lilangeni swazi' },
+  { code: 'THB', nom: 'Baht thaïlandais' }, { code: 'TJS', nom: 'Somoni tadjik' },
+  { code: 'TMT', nom: 'Manat turkmène' }, { code: 'TND', nom: 'Dinar tunisien' },
+  { code: 'TOP', nom: "Pa'anga tongan" }, { code: 'TRY', nom: 'Livre turque' },
+  { code: 'TTD', nom: 'Dollar de Trinité-et-Tobago' }, { code: 'TWD', nom: 'Nouveau dollar taïwanais' },
+  { code: 'TZS', nom: 'Shilling tanzanien' }, { code: 'UAH', nom: 'Hryvnia ukrainienne' },
+  { code: 'UGX', nom: 'Shilling ougandais' }, { code: 'USD', nom: 'Dollar américain' },
+  { code: 'UYU', nom: 'Peso uruguayen' }, { code: 'UZS', nom: 'Sum ouzbek' },
+  { code: 'VES', nom: 'Bolívar vénézuélien' }, { code: 'VND', nom: 'Dong vietnamien' },
+  { code: 'VUV', nom: 'Vatu vanuatuan' }, { code: 'WST', nom: 'Tala samoan' },
+  { code: 'XAF', nom: 'Franc CFA (BEAC)' }, { code: 'XCD', nom: 'Dollar des Caraïbes orientales' },
+  { code: 'XOF', nom: 'Franc CFA (BCEAO)' }, { code: 'XPF', nom: 'Franc CFP' },
+  { code: 'YER', nom: 'Rial yéménite' }, { code: 'ZAR', nom: 'Rand sud-africain' },
+  { code: 'ZMW', nom: 'Kwacha zambien' }, { code: 'ZWL', nom: 'Dollar zimbabwéen' }
+];
+
 /* ============================================================================
    ÉTAT DE L'APPLICATION (en mémoire uniquement, remis à zéro à chaque
    rechargement de page — pas de persistance locale, par simplicité et
@@ -958,6 +1052,23 @@ let vueMontantPrelevements = 'echeance'; // 'echeance' ou 'annuel' — bascule l
 let dernierDetailProvisions = []; // cache du dernier calcul, pour re-trier sans rappeler l'API
 let etatTriDetail = { colonne: null, sens: 1 }; // tri courant du tableau de bord
 let etatTriPrelevements = { colonne: null, sens: 1 }; // tri courant du tableau des prélèvements
+
+// Remplit le sélecteur "Devise" du formulaire à partir de la liste DEVISES
+// ci-dessus, avec l'euro pré-sélectionné (la devise du vault Revolut). Exécuté
+// une seule fois au chargement de la page : les <option> générées ici restent
+// en place pour toute la session, y compris quand le formulaire est réinitialisé.
+function initialiserListeDevises() {
+  const select = document.getElementById('champ-devise');
+  DEVISES.forEach(function (devise) {
+    const estParDefaut = devise.code === DEVISE_PAR_DEFAUT;
+    // new Option(texte, valeur, estSelectionneParDefaut, estSelectionne) : les
+    // deux derniers booléens permettent à formulaire.reset() de revenir
+    // correctement sur l'euro, et pas seulement à la sélection au chargement.
+    const option = new Option(devise.code + ' — ' + devise.nom, devise.code, estParDefaut, estParDefaut);
+    select.appendChild(option);
+  });
+}
+initialiserListeDevises();
 
 /* ============================================================================
    CONNEXION GOOGLE (Google Identity Services)
@@ -1290,7 +1401,7 @@ function valeurMontantAffiche(prelevement) {
 }
 
 function formaterMontantColonne(prelevement) {
-  return formaterMontant(valeurMontantAffiche(prelevement));
+  return formaterMontant(valeurMontantAffiche(prelevement), prelevement.devise);
 }
 
 // Nombre total d'échéances d'une ligne "échéance connue" : le nombre saisi
@@ -1436,6 +1547,7 @@ function ouvrirModaleDuplication(prelevement) {
 function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
   document.getElementById('champ-nom').value = nomAffiche;
   document.getElementById('champ-categorie').value = prelevement.categorie || '';
+  document.getElementById('champ-devise').value = prelevement.devise || DEVISE_PAR_DEFAUT;
   document.getElementById('champ-notes').value = prelevement.notes || '';
 
   changerModeFormulaire(prelevement.mode);
@@ -1567,6 +1679,7 @@ async function soumettreFormulaire(evenement) {
   const donnees = {
     nom_crediteur: document.getElementById('champ-nom').value.trim(),
     categorie: document.getElementById('champ-categorie').value.trim(),
+    devise: document.getElementById('champ-devise').value || DEVISE_PAR_DEFAUT,
     mode: modeFormulaireActuel,
     notes: document.getElementById('champ-notes').value.trim(),
     montant_reference: '',
@@ -1623,8 +1736,18 @@ async function soumettreFormulaire(evenement) {
    UTILITAIRES D'AFFICHAGE
    ============================================================================ */
 
-function formaterMontant(nombre) {
-  return (Number(nombre) || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+// Formate un montant avec le symbole/code de sa devise (EUR par défaut, pour
+// tous les montants qui restent exprimés en euros — provisions, vault...).
+// Repli en "123.45 XYZ" si jamais le code fourni n'est pas reconnu par le
+// navigateur, plutôt que de faire planter l'affichage.
+function formaterMontant(nombre, devise) {
+  const montant = Number(nombre) || 0;
+  const codeDevise = devise || DEVISE_PAR_DEFAUT;
+  try {
+    return montant.toLocaleString('fr-FR', { style: 'currency', currency: codeDevise });
+  } catch (erreur) {
+    return montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + codeDevise;
+  }
 }
 
 function formaterDateAffichage(dateIso) {
