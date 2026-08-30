@@ -615,6 +615,29 @@
     margin-top: 30px;
   }
 
+  /* La règle générale ".champ label" (display:block, un peu plus haut) est
+     plus spécifique que ".case-toggle" seule et lui imposerait un affichage
+     empilé (case au-dessus du texte). On la neutralise ici spécifiquement
+     pour les cases à cocher de type "case-toggle", qui doivent rester
+     alignées sur une seule ligne (case à gauche, libellé à droite). */
+  .champ label.case-toggle {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+  }
+
+  /* Champ montant propre à chaque échéance, dans la liste de dates du mode
+     "échéance connue" : masqué par défaut (montant identique pour toutes),
+     révélé quand la case "Montant identique" est décochée. */
+  .ligne-date-manuelle .montant-ligne {
+    display: none;
+    width: 110px;
+    flex: none;
+  }
+  #liste-dates-manuelles.montants-actifs .ligne-date-manuelle .montant-ligne {
+    display: block;
+  }
+
   .champ input:focus, .champ select:focus, .champ textarea:focus {
     outline: none;
     border-color: var(--primaire);
@@ -902,7 +925,7 @@
             <input type="number" step="0.01" min="0" id="champ-montant-classique">
           </div>
           <div class="champ">
-            <label for="champ-espacement-classique">Tous les combien de mois</label>
+            <label for="champ-espacement-classique">Période (mois)</label>
             <input type="number" step="1" min="1" value="1" id="champ-espacement-classique">
           </div>
         </div>
@@ -926,24 +949,38 @@
 
       <!-- Champs spécifiques au mode "échéance connue" -->
       <div id="bloc-echeance" style="display:none;">
+        <!-- Cochée (par défaut) : un seul montant vaut pour toutes les
+             échéances de la liste, comme avant. Décochée : chaque échéance
+             de la liste ci-dessous révèle son propre champ montant,
+             modifiable individuellement (utile par ex. pour un reliquat
+             d'impôt dont chaque acompte diffère). -->
         <div class="champ">
-          <label for="champ-montant-echeance" id="label-montant-echeance">Montant par échéance (€)</label>
-          <input type="number" step="0.01" min="0" id="champ-montant-echeance">
+          <label class="case-toggle">
+            <input type="checkbox" id="champ-montant-identique" checked onchange="basculerMontantIdentique()">
+            Montant identique pour toutes les échéances
+          </label>
         </div>
 
         <!-- Générateur : remplit la liste de dates ci-dessous automatiquement,
              pour une série régulière espacée d'un nombre de mois choisi. La
              liste reste ensuite modifiable à la main (ajout, retrait, ou
-             simple correction d'une date qui ne tombe pas pile). -->
+             simple correction d'une date qui ne tombe pas pile). Le montant
+             saisi ici vaut pour toutes les échéances ("montant identique"
+             coché), ou sert simplement de valeur de départ pré-remplie pour
+             chaque échéance générée (modifiable ensuite ligne par ligne). -->
         <div class="generateur-serie">
           <p class="generateur-titre">Générer une série régulière (facultatif)</p>
+          <div class="champ">
+            <label for="champ-montant-echeance" id="label-montant-echeance">Montant par échéance (€)</label>
+            <input type="number" step="0.01" min="0" id="champ-montant-echeance">
+          </div>
           <div class="ligne-trois-champs">
             <div class="champ">
               <label for="champ-serie-debut">1ère échéance</label>
               <input type="date" id="champ-serie-debut">
             </div>
             <div class="champ">
-              <label for="champ-serie-espacement">Tous les combien de mois</label>
+              <label for="champ-serie-espacement">Période (mois)</label>
               <input type="number" step="1" min="1" value="1" id="champ-serie-espacement">
             </div>
             <div class="champ">
@@ -951,15 +988,13 @@
               <input type="number" step="1" min="1" id="champ-serie-nombre">
             </div>
           </div>
-          <div class="champ">
-            <label for="champ-serie-fin">... ou jusqu'au (à la place du nombre d'échéances)</label>
-            <input type="date" id="champ-serie-fin">
-          </div>
-          <button type="button" class="bouton-secondaire" onclick="genererSerieReguliere()">Générer la liste ci-dessous</button>
+          <button type="button" class="bouton-secondaire" onclick="genererSerieReguliere()">Ajouter cette série à la liste ci-dessous</button>
         </div>
 
         <!-- Liste des dates réellement enregistrées : une saisie manuelle,
-             que la série ci-dessus l'ait pré-remplie ou non. -->
+             que la série ci-dessus l'ait alimentée ou non. Chaque nouvelle
+             génération s'ajoute à la suite de ce qui est déjà présent, sans
+             rien effacer. -->
         <div class="champ">
           <label>Dates des échéances</label>
           <div id="liste-dates-manuelles"></div>
@@ -994,7 +1029,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.5 — 29/08/2026';
+const VERSION_APP = 'v0.6 — 30/08/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1474,7 +1509,23 @@ function trierPrelevements(colonne) {
 // - "annuel" : le total que cela représente sur l'année pour le mode
 //   classique (montant × fréquence), ou le total de toutes les échéances
 //   pour le mode "échéance connue" (montant × nombre d'échéances).
+//
+// Cas particulier : une ligne "échéance connue" à montant variable (chaque
+// échéance a son propre montant, dans "montants_echeances") n'a plus de
+// montant unique à multiplier — on affiche alors directement la somme des
+// montants saisis en vue "annuel", et leur moyenne en vue "echeance"
+// (valeur indicative, puisqu'ils diffèrent réellement d'une échéance à l'autre).
 function valeurMontantAffiche(prelevement) {
+  if (prelevement.mode === 'echeance_connue' && prelevement.montants_echeances) {
+    const montants = String(prelevement.montants_echeances)
+      .split(';')
+      .map(function (texte) { return Number(texte.trim()); })
+      .filter(function (nombre) { return !isNaN(nombre); });
+    const total = montants.reduce(function (a, b) { return a + b; }, 0);
+    if (vueMontantPrelevements === 'annuel') return total;
+    return montants.length ? total / montants.length : 0;
+  }
+
   const montant = Number(prelevement.montant_reference) || 0;
   if (vueMontantPrelevements === 'echeance') return montant;
 
@@ -1619,6 +1670,8 @@ function ouvrirModaleAjout() {
   document.getElementById('champ-espacement-classique').value = '1';
   document.getElementById('champ-fin-mois').checked = false;
   basculerChampFinDeMois(); // réactive le champ date s'il était resté désactivé d'une session précédente
+  document.getElementById('champ-montant-identique').checked = true;
+  basculerMontantIdentique(); // masque les champs montant individuels de la liste
   mettreAJourLibellesMontant(); // la devise revient à EUR par défaut via reset()
   changerModeFormulaire('classique');
 
@@ -1672,6 +1725,8 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
     document.getElementById('champ-date-debut').value = prelevement.date_debut || '';
     document.getElementById('champ-fin-mois').checked = !!prelevement.fin_de_mois;
     basculerChampFinDeMois(); // synchronise l'état désactivé/vidé du champ date avec la case
+    document.getElementById('champ-montant-identique').checked = true;
+    basculerMontantIdentique();
     ajouterChampDate(); // liste prête si l'utilisateur bascule vers "Échéance connue"
   } else {
     document.getElementById('champ-montant-echeance').value = prelevement.montant_reference || '';
@@ -1684,8 +1739,17 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
       .map(function (texte) { return texte.trim(); })
       .filter(function (texte) { return texte.length > 0; });
 
+    // "montants_echeances" renseignée = montant variable (case décochée) ;
+    // vide = montant identique (comportement historique, case cochée).
+    const montantsExistants = String(prelevement.montants_echeances || '')
+      .split(';')
+      .map(function (texte) { return texte.trim(); });
+    const auMoinsUnMontantSpecifique = montantsExistants.some(function (m) { return m !== ''; });
+    document.getElementById('champ-montant-identique').checked = !auMoinsUnMontantSpecifique;
+    basculerMontantIdentique();
+
     if (datesExistantes.length > 0) {
-      datesExistantes.forEach(function (date) { ajouterChampDate(date); });
+      datesExistantes.forEach(function (date, index) { ajouterChampDate(date, montantsExistants[index] || ''); });
     } else if (prelevement.date_premiere_echeance) {
       ajouterChampDate(prelevement.date_premiere_echeance);
     } else {
@@ -1700,17 +1764,19 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
 
 let compteurChampsDate = 0; // pour générer des id uniques aux champs de dates
 
-// Ajoute un nouveau champ de date à la liste (vide, ou pré-rempli avec
-// "valeur" si fournie — utilisé aussi bien par le bouton "+ Ajouter une
-// date" que pour repeupler le formulaire en mode modification).
-function ajouterChampDate(valeur) {
+// Ajoute un nouveau champ de date (et son champ montant associé, révélé
+// seulement quand "Montant identique" est décochée) à la liste. Utilisé
+// aussi bien par le bouton "+ Ajouter une date" que par le générateur de
+// série, ou pour repeupler le formulaire en mode modification.
+function ajouterChampDate(valeurDate, valeurMontant) {
   const conteneur = document.getElementById('liste-dates-manuelles');
   const id = 'date-manuelle-' + (compteurChampsDate++);
 
   const ligne = document.createElement('div');
   ligne.className = 'ligne-date-manuelle';
   ligne.innerHTML =
-    '<input type="date" id="' + id + '" value="' + (valeur || '') + '">' +
+    '<input type="date" id="' + id + '" value="' + (valeurDate || '') + '">' +
+    '<input type="number" step="0.01" min="0" class="montant-ligne" placeholder="Montant" value="' + (valeurMontant || '') + '">' +
     '<button type="button" class="bouton-mini danger" title="Retirer cette date">' +
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
     '</button>';
@@ -1723,46 +1789,44 @@ function viderListeDatesManuelles() {
   document.getElementById('liste-dates-manuelles').innerHTML = '';
 }
 
+// Cochée : un seul montant (champ "Montant par échéance" du générateur)
+// s'applique à toutes les échéances — les champs montant individuels de la
+// liste restent masqués et ignorés à l'enregistrement. Décochée : chaque
+// ligne de la liste a son propre montant, pris en compte tel quel.
+function basculerMontantIdentique() {
+  const identique = document.getElementById('champ-montant-identique').checked;
+  document.getElementById('liste-dates-manuelles').classList.toggle('montants-actifs', !identique);
+}
+
 // Génère une série d'échéances régulières espacées d'un nombre entier de
-// mois, et remplace la liste de dates manuelles par le résultat (que
-// l'utilisateur peut ensuite ajuster librement). Deux façons de borner la
-// série : un nombre d'échéances, ou une date de fin — si les deux sont
-// vides, une échéance unique est générée.
+// mois, et l'ajoute à la suite de la liste de dates déjà présente (sans
+// rien effacer, pour permettre de composer plusieurs séries ou d'y mêler
+// des dates isolées). Chaque échéance générée reprend, à titre de valeur de
+// départ, le montant saisi dans le générateur — modifiable ensuite ligne
+// par ligne si "Montant identique" est décochée.
 function genererSerieReguliere() {
   const debut = document.getElementById('champ-serie-debut').value;
   const espacement = parseInt(document.getElementById('champ-serie-espacement').value, 10) || 1;
   const nombre = parseInt(document.getElementById('champ-serie-nombre').value, 10) || 0;
-  const fin = document.getElementById('champ-serie-fin').value;
+  const montantDefaut = document.getElementById('champ-montant-echeance').value;
 
   if (!debut) {
     afficherErreur('Renseigne la date de la 1ère échéance avant de générer la série.');
     return;
   }
 
+  const nbAGenerer = nombre > 0 ? nombre : 1;
   const dates = [];
   const dateDebut = new Date(debut + 'T00:00:00');
 
-  if (nombre > 0) {
-    for (let i = 0; i < nombre; i++) {
-      const date = new Date(dateDebut);
-      date.setMonth(date.getMonth() + i * espacement);
-      dates.push(date);
-    }
-  } else if (fin) {
-    const dateFin = new Date(fin + 'T00:00:00');
-    let date = new Date(dateDebut);
-    while (date <= dateFin) {
-      dates.push(new Date(date));
-      date.setMonth(date.getMonth() + espacement);
-    }
-    if (dates.length === 0) dates.push(dateDebut);
-  } else {
-    dates.push(dateDebut);
+  for (let i = 0; i < nbAGenerer; i++) {
+    const date = new Date(dateDebut);
+    date.setMonth(date.getMonth() + i * espacement);
+    dates.push(date);
   }
 
-  viderListeDatesManuelles();
-  dates.forEach(function (date) { ajouterChampDate(formaterDateISO(date)); });
-  afficherToast(dates.length + ' échéance(s) générée(s) — vérifie la liste ci-dessous avant d\'enregistrer.');
+  dates.forEach(function (date) { ajouterChampDate(formaterDateISO(date), montantDefaut); });
+  afficherToast(dates.length + ' échéance(s) ajoutée(s) à la liste — vérifie-la avant d\'enregistrer.');
 }
 
 function formaterDateISO(date) {
@@ -1804,7 +1868,8 @@ async function soumettreFormulaire(evenement) {
     date_premiere_echeance: '',
     date_derniere_echeance: '',
     nb_echeances_total: '',
-    dates_echeances: ''
+    dates_echeances: '',
+    montants_echeances: ''
   };
 
   if (modeFormulaireActuel === 'classique') {
@@ -1817,25 +1882,47 @@ async function soumettreFormulaire(evenement) {
     donnees.date_debut = document.getElementById('champ-date-debut').value;
     donnees.fin_de_mois = document.getElementById('champ-fin-mois').checked ? 'oui' : 'non';
   } else {
-    donnees.montant_reference = Number(document.getElementById('champ-montant-echeance').value) || 0;
+    const montantIdentique = document.getElementById('champ-montant-identique').checked;
+    const montantUnique = Number(document.getElementById('champ-montant-echeance').value) || 0;
 
     // La liste de dates éditable est la seule source de vérité envoyée au
     // backend : qu'elle vienne du générateur de série régulière ou d'une
-    // saisie manuelle disparate, le résultat est le même champ "dates_echeances".
-    const datesSaisies = Array.from(document.querySelectorAll('#liste-dates-manuelles input[type="date"]'))
-      .map(function (champ) { return champ.value; })
-      .filter(function (valeur) { return !!valeur; })
-      .sort();
+    // saisie manuelle disparate, le résultat est le même champ "dates_echeances"
+    // (et, si "montant identique" est décochée, "montants_echeances" en vis-à-vis).
+    // Chaque ligne date+montant est traitée comme une paire avant le tri par
+    // date, pour que les montants restent bien alignés avec leur échéance.
+    const paires = Array.from(document.querySelectorAll('#liste-dates-manuelles .ligne-date-manuelle'))
+      .map(function (ligne) {
+        const date = ligne.querySelector('input[type="date"]').value;
+        const montantSaisi = ligne.querySelector('.montant-ligne').value;
+        const montant = montantSaisi !== '' ? Number(montantSaisi) : montantUnique;
+        return { date: date, montant: montant };
+      })
+      .filter(function (paire) { return !!paire.date; })
+      .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
 
-    if (datesSaisies.length === 0) {
+    if (paires.length === 0) {
       afficherErreur('Renseigne au moins une date d\'échéance (ou génère une série régulière ci-dessus).');
       return;
     }
 
+    const datesSaisies = paires.map(function (p) { return p.date; });
     donnees.dates_echeances = datesSaisies.join(';');
     donnees.date_premiere_echeance = datesSaisies[0];
     donnees.date_derniere_echeance = datesSaisies[datesSaisies.length - 1];
     donnees.nb_echeances_total = datesSaisies.length;
+
+    if (montantIdentique) {
+      donnees.montant_reference = montantUnique;
+      donnees.montants_echeances = ''; // vide = montant identique pour toutes
+    } else {
+      const montants = paires.map(function (p) { return p.montant; });
+      donnees.montants_echeances = montants.join(';');
+      // montant_reference garde une valeur indicative (moyenne), lisible
+      // directement dans la Sheet même si le montant varie d'une échéance
+      // à l'autre.
+      donnees.montant_reference = Math.round((montants.reduce(function (a, b) { return a + b; }, 0) / montants.length) * 100) / 100;
+    }
   }
 
   try {
