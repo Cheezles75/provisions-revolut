@@ -619,11 +619,26 @@
      plus spécifique que ".case-toggle" seule et lui imposerait un affichage
      empilé (case au-dessus du texte). On la neutralise ici spécifiquement
      pour les cases à cocher de type "case-toggle", qui doivent rester
-     alignées sur une seule ligne (case à gauche, libellé à droite). */
+     alignées sur une seule ligne (case à gauche, libellé à droite), avec un
+     cadre qui épouse la largeur de son contenu (et non toute la largeur du
+     formulaire) pour rester poussé à gauche plutôt qu'isolé au milieu d'un
+     grand espace vide. */
   .champ label.case-toggle {
     display: flex;
     align-items: center;
+    width: fit-content;
     margin-bottom: 0;
+  }
+
+  /* ".champ input" (un peu plus haut) impose une largeur de 100% à tous les
+     champs de formulaire, cases à cocher comprises : sans cette exception,
+     une case à cocher s'étire sur toute la largeur disponible et son carré
+     se retrouve dessiné centré dans ce grand espace vide, avec le libellé
+     repoussé loin à droite. On lui redonne ici sa taille naturelle. */
+  .champ input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    flex: none;
   }
 
   /* Champ montant propre à chaque échéance, dans la liste de dates du mode
@@ -636,6 +651,27 @@
   }
   #liste-dates-manuelles.montants-actifs .ligne-date-manuelle .montant-ligne {
     display: block;
+  }
+
+  /* La liste de dates s'enrichit ligne par ligne (montant, case "Dernier
+     jour du mois") : on autorise le retour à la ligne pour rester lisible
+     sur petit écran plutôt que de comprimer tous les champs sur une seule
+     ligne trop étroite. */
+  .ligne-date-manuelle {
+    flex-wrap: wrap;
+  }
+
+  .case-toggle-ligne {
+    color: var(--texte-attenue);
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+
+  /* Bouton "Ajouter cette série à la liste ci-dessous" : centré dans
+     l'encart du générateur, plutôt qu'aligné à gauche façon lien discret. */
+  .bouton-generer-serie {
+    display: block;
+    margin: 6px auto 4px;
   }
 
   .champ input:focus, .champ select:focus, .champ textarea:focus {
@@ -988,13 +1024,26 @@
               <input type="number" step="1" min="1" id="champ-serie-nombre">
             </div>
           </div>
-          <button type="button" class="bouton-secondaire" onclick="genererSerieReguliere()">Ajouter cette série à la liste ci-dessous</button>
+          <!-- Cochée : chaque échéance générée tombe sur le dernier jour de
+               son mois, quel que soit le jour saisi en "1ère échéance". Même
+               décochée, un jour comme 31 ou 29 (février) saisi en 1ère
+               échéance est automatiquement adapté sur les mois qui comptent
+               moins de jours (voir ajouterMoisSansDebordement côté JS). -->
+          <div class="champ">
+            <label class="case-toggle">
+              <input type="checkbox" id="champ-serie-fin-mois">
+              Dernier jour du mois (pour toute la série)
+            </label>
+          </div>
+          <button type="button" class="bouton-secondaire bouton-generer-serie" onclick="genererSerieReguliere()">Ajouter cette série à la liste ci-dessous</button>
         </div>
 
         <!-- Liste des dates réellement enregistrées : une saisie manuelle,
              que la série ci-dessus l'ait alimentée ou non. Chaque nouvelle
              génération s'ajoute à la suite de ce qui est déjà présent, sans
-             rien effacer. -->
+             rien effacer. Chaque ligne a sa propre case "Dernier jour du
+             mois" : cochée, le jour saisi est ignoré et remplacé par le
+             dernier jour valide du mois choisi. -->
         <div class="champ">
           <label>Dates des échéances</label>
           <div id="liste-dates-manuelles"></div>
@@ -1029,7 +1078,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.6 — 30/08/2026';
+const VERSION_APP = 'v0.7 — 30/08/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1730,6 +1779,7 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
     ajouterChampDate(); // liste prête si l'utilisateur bascule vers "Échéance connue"
   } else {
     document.getElementById('champ-montant-echeance').value = prelevement.montant_reference || '';
+    document.getElementById('champ-serie-fin-mois').checked = false; // case du générateur, jamais persistée (elle ne sert qu'à la génération)
 
     // On reconstruit la liste de dates éditable à partir de ce qui est
     // enregistré : la liste explicite si elle existe, sinon (anciennes
@@ -1748,8 +1798,17 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
     document.getElementById('champ-montant-identique').checked = !auMoinsUnMontantSpecifique;
     basculerMontantIdentique();
 
+    // "echeances_fin_de_mois" : une case "oui"/"non" par échéance, alignée
+    // sur "dates_echeances", pour restaurer l'état de chaque case "Dernier
+    // jour du mois" individuelle telle qu'elle était à l'enregistrement.
+    const finsDeMoisExistants = String(prelevement.echeances_fin_de_mois || '')
+      .split(';')
+      .map(function (texte) { return texte.trim().toLowerCase() === 'oui'; });
+
     if (datesExistantes.length > 0) {
-      datesExistantes.forEach(function (date, index) { ajouterChampDate(date, montantsExistants[index] || ''); });
+      datesExistantes.forEach(function (date, index) {
+        ajouterChampDate(date, montantsExistants[index] || '', finsDeMoisExistants[index] || false);
+      });
     } else if (prelevement.date_premiere_echeance) {
       ajouterChampDate(prelevement.date_premiere_echeance);
     } else {
@@ -1764,11 +1823,35 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
 
 let compteurChampsDate = 0; // pour générer des id uniques aux champs de dates
 
-// Ajoute un nouveau champ de date (et son champ montant associé, révélé
-// seulement quand "Montant identique" est décochée) à la liste. Utilisé
-// aussi bien par le bouton "+ Ajouter une date" que par le générateur de
-// série, ou pour repeupler le formulaire en mode modification.
-function ajouterChampDate(valeurDate, valeurMontant) {
+// Ajoute un nombre entier de mois à une date, en gérant proprement le
+// débordement de fin de mois : JavaScript, nativement, ferait déborder le
+// 31 janvier + 1 mois sur le 2 ou 3 mars (le "31" n'existe pas en février,
+// et Date() reporte l'excédent sur le mois suivant au lieu de s'arrêter au
+// dernier jour valide). Ici, on retombe systématiquement sur le dernier
+// jour du mois cible quand le jour d'origine ne s'y trouve pas — utile pour
+// le 30/31, mais aussi pour un 29 février lors d'une récurrence pluriannuelle
+// qui retombe sur une année non bissextile.
+function ajouterMoisSansDebordement(date, moisAAjouter) {
+  const jourOrigine = date.getDate();
+  const premierDuMoisCible = new Date(date.getFullYear(), date.getMonth() + moisAAjouter, 1);
+  const dernierJourMoisCible = dernierJourDuMois(premierDuMoisCible).getDate();
+  premierDuMoisCible.setDate(Math.min(jourOrigine, dernierJourMoisCible));
+  return premierDuMoisCible;
+}
+
+// Renvoie le dernier jour du mois contenant "date" (28, 29, 30 ou 31 selon
+// le mois et l'année) : le jour 0 du mois suivant est toujours le dernier
+// jour du mois en cours, quel que soit son nombre de jours.
+function dernierJourDuMois(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+// Ajoute un nouveau champ de date (avec son champ montant associé, révélé
+// seulement quand "Montant identique" est décochée, et sa case "Dernier
+// jour du mois" propre à cette échéance) à la liste. Utilisé aussi bien par
+// le bouton "+ Ajouter une date" que par le générateur de série, ou pour
+// repeupler le formulaire en mode modification.
+function ajouterChampDate(valeurDate, valeurMontant, valeurFinDeMois) {
   const conteneur = document.getElementById('liste-dates-manuelles');
   const id = 'date-manuelle-' + (compteurChampsDate++);
 
@@ -1777,9 +1860,30 @@ function ajouterChampDate(valeurDate, valeurMontant) {
   ligne.innerHTML =
     '<input type="date" id="' + id + '" value="' + (valeurDate || '') + '">' +
     '<input type="number" step="0.01" min="0" class="montant-ligne" placeholder="Montant" value="' + (valeurMontant || '') + '">' +
+    '<label class="case-toggle case-toggle-ligne">' +
+    '<input type="checkbox" class="fin-mois-ligne">' +
+    'Dernier jour du mois' +
+    '</label>' +
     '<button type="button" class="bouton-mini danger" title="Retirer cette date">' +
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
     '</button>';
+
+  const champDate = ligne.querySelector('input[type="date"]');
+  const champFinMois = ligne.querySelector('.fin-mois-ligne');
+
+  // Cochée : le jour saisi dans le champ date est ignoré et remplacé par le
+  // dernier jour valide du mois choisi, à chaque changement de l'un ou
+  // l'autre champ (pratique pour ne pas avoir à retenir si un mois compte
+  // 28, 29, 30 ou 31 jours).
+  function synchroniser() {
+    if (champFinMois.checked && champDate.value) {
+      champDate.value = formaterDateISO(dernierJourDuMois(new Date(champDate.value + 'T00:00:00')));
+    }
+  }
+  champFinMois.checked = !!valeurFinDeMois;
+  champFinMois.addEventListener('change', synchroniser);
+  champDate.addEventListener('change', synchroniser);
+  synchroniser(); // au cas où la ligne est pré-remplie avec la case déjà cochée
 
   ligne.querySelector('button').onclick = function () { ligne.remove(); };
   conteneur.appendChild(ligne);
@@ -1803,12 +1907,16 @@ function basculerMontantIdentique() {
 // rien effacer, pour permettre de composer plusieurs séries ou d'y mêler
 // des dates isolées). Chaque échéance générée reprend, à titre de valeur de
 // départ, le montant saisi dans le générateur — modifiable ensuite ligne
-// par ligne si "Montant identique" est décochée.
+// par ligne si "Montant identique" est décochée. Le calcul des dates gère
+// le débordement de fin de mois (voir ajouterMoisSansDebordement), et la
+// case "Dernier jour du mois" force en plus chaque échéance générée sur le
+// dernier jour de son mois, quel que soit le jour de la 1ère échéance.
 function genererSerieReguliere() {
   const debut = document.getElementById('champ-serie-debut').value;
   const espacement = parseInt(document.getElementById('champ-serie-espacement').value, 10) || 1;
   const nombre = parseInt(document.getElementById('champ-serie-nombre').value, 10) || 0;
   const montantDefaut = document.getElementById('champ-montant-echeance').value;
+  const finDeMoisSerie = document.getElementById('champ-serie-fin-mois').checked;
 
   if (!debut) {
     afficherErreur('Renseigne la date de la 1ère échéance avant de générer la série.');
@@ -1820,12 +1928,12 @@ function genererSerieReguliere() {
   const dateDebut = new Date(debut + 'T00:00:00');
 
   for (let i = 0; i < nbAGenerer; i++) {
-    const date = new Date(dateDebut);
-    date.setMonth(date.getMonth() + i * espacement);
+    let date = ajouterMoisSansDebordement(dateDebut, i * espacement);
+    if (finDeMoisSerie) date = dernierJourDuMois(date);
     dates.push(date);
   }
 
-  dates.forEach(function (date) { ajouterChampDate(formaterDateISO(date), montantDefaut); });
+  dates.forEach(function (date) { ajouterChampDate(formaterDateISO(date), montantDefaut, finDeMoisSerie); });
   afficherToast(dates.length + ' échéance(s) ajoutée(s) à la liste — vérifie-la avant d\'enregistrer.');
 }
 
@@ -1869,7 +1977,8 @@ async function soumettreFormulaire(evenement) {
     date_derniere_echeance: '',
     nb_echeances_total: '',
     dates_echeances: '',
-    montants_echeances: ''
+    montants_echeances: '',
+    echeances_fin_de_mois: ''
   };
 
   if (modeFormulaireActuel === 'classique') {
@@ -1896,7 +2005,8 @@ async function soumettreFormulaire(evenement) {
         const date = ligne.querySelector('input[type="date"]').value;
         const montantSaisi = ligne.querySelector('.montant-ligne').value;
         const montant = montantSaisi !== '' ? Number(montantSaisi) : montantUnique;
-        return { date: date, montant: montant };
+        const finDeMois = ligne.querySelector('.fin-mois-ligne').checked;
+        return { date: date, montant: montant, finDeMois: finDeMois };
       })
       .filter(function (paire) { return !!paire.date; })
       .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
@@ -1911,6 +2021,11 @@ async function soumettreFormulaire(evenement) {
     donnees.date_premiere_echeance = datesSaisies[0];
     donnees.date_derniere_echeance = datesSaisies[datesSaisies.length - 1];
     donnees.nb_echeances_total = datesSaisies.length;
+    // Alignée sur "dates_echeances", uniquement pour restaurer l'état de
+    // chaque case "Dernier jour du mois" individuelle si Charles rouvre la
+    // ligne en modification (le calcul de provision, lui, se base
+    // uniquement sur la date déjà résolue dans "dates_echeances").
+    donnees.echeances_fin_de_mois = paires.map(function (p) { return p.finDeMois ? 'oui' : 'non'; }).join(';');
 
     if (montantIdentique) {
       donnees.montant_reference = montantUnique;
