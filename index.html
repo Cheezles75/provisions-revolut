@@ -476,6 +476,43 @@
   }
 
   /* ==========================================================================
+     PANNEAU D'AUDIT TEMPORAIRE — détail de la simulation qui produit la
+     recommandation (ajouter/retirer), demandé par Charles pour vérifier "à
+     la main" un montant qu'il soupçonnait surestimé. Bordure en tirets +
+     bandeau ambré pour bien signaler que ce panneau est provisoire, prévu
+     pour être retiré une fois le calcul validé (voir backlog).
+     ========================================================================== */
+  .panneau-debug-temporaire { border: 2px dashed #c9a13b; }
+  .panneau-debug-temporaire .entete-carte { border-bottom-color: #e3cd8f; }
+  .avertissement-temporaire {
+    margin: 0 26px 14px;
+    font-size: 13px;
+    color: #8a6d1f;
+    background: #fff6de;
+    border-radius: var(--rayon-petit);
+    padding: 10px 14px;
+    line-height: 1.5;
+  }
+  .tableau-simulation-vault { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .tableau-simulation-vault th,
+  .tableau-simulation-vault td {
+    padding: 9px 14px;
+    text-align: right;
+    border-bottom: 1px solid var(--bordure);
+    white-space: nowrap;
+  }
+  .tableau-simulation-vault th:first-child,
+  .tableau-simulation-vault td:first-child { text-align: left; }
+  .tableau-simulation-vault th {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--texte-attenue);
+    font-weight: 800;
+  }
+  .tableau-simulation-vault tr.ligne-determinante td { color: var(--danger); font-weight: 800; }
+
+  /* ==========================================================================
      VIREMENTS À PRÉVOIR — listes "Commun → Vault" (alimentation) et
      "Vault → Commun" (retours groupés), même présentation pour les deux.
      ========================================================================== */
@@ -1063,6 +1100,35 @@
     </div>
 
     <!-- ==========================================================================
+         PANNEAU D'AUDIT TEMPORAIRE — détail ligne par ligne du calcul qui
+         mène à la recommandation ci-dessus, demandé par Charles pour
+         vérifier un montant soupçonné surestimé. À retirer une fois validé
+         (voir backlog, section Qualité/outillage).
+         ========================================================================== -->
+    <div class="conteneur-tableau panneau-debug-temporaire" style="margin-top:20px;" id="carte-simulation-vault">
+      <div class="entete-carte">
+        <h3>🔧 Détail du calcul de recommandation (temporaire)</h3>
+      </div>
+      <p class="avertissement-temporaire">Panneau de vérification provisoire : il expose, virement retour par virement retour sur les 12 prochains mois, le calcul exact qui produit la recommandation ci-dessus. Il sera retiré une fois que tu l'auras validé.</p>
+      <div class="scroll-horizontal">
+        <table class="tableau-simulation-vault">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Solde de départ</th>
+              <th>+ Alimentation cumulée</th>
+              <th>− Retours cumulés</th>
+              <th>= Solde projeté</th>
+              <th>Écart vs marge</th>
+            </tr>
+          </thead>
+          <tbody id="corps-tableau-simulation-vault"></tbody>
+        </table>
+      </div>
+      <p class="etat-vide" id="etat-vide-simulation" style="display:none;">Aucun virement retour simulé sur les 12 prochains mois.</p>
+    </div>
+
+    <!-- ==========================================================================
          VIREMENTS À PRÉVOIR — dans les deux sens : Commun → Vault
          (alimentation mensuelle) et Vault → Commun (virements retour,
          groupés automatiquement dès qu'il y a plus de 14 jours sans
@@ -1335,7 +1401,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.13 — 23/09/2026';
+const VERSION_APP = 'v0.14 — 23/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1801,11 +1867,44 @@ async function rafraichirPlanVault() {
     remplirBandeauRecommandation(donnees.recommandation);
     remplirListeMouvements('liste-alimentation', 'etat-vide-alimentation', donnees.alimentation, 'alimentation_vault');
     remplirListeMouvements('liste-virements-retour', 'etat-vide-retour', donnees.virements_retour, 'retour_vers_compte');
+    remplirTableauSimulationVault(donnees.detail_simulation_vault || []);
 
     masquerBandeauErreur();
   } catch (erreur) {
     afficherErreur(erreur.message);
   }
+}
+
+// Panneau d'audit TEMPORAIRE (voir backlog) : une ligne par virement retour
+// simulé sur les 12 mois, exactement le détail utilisé en interne pour
+// produire la recommandation — la ligne qui la détermine (le "pire cas") est
+// mise en rouge/gras, pour que Charles puisse la repérer immédiatement.
+function remplirTableauSimulationVault(detail) {
+  const carte = document.getElementById('carte-simulation-vault');
+  if (!carte) return; // panneau retiré du HTML : rien à faire
+
+  const corps = document.getElementById('corps-tableau-simulation-vault');
+  const etatVide = document.getElementById('etat-vide-simulation');
+  corps.innerHTML = '';
+
+  if (!detail.length) {
+    etatVide.style.display = 'block';
+    return;
+  }
+  etatVide.style.display = 'none';
+
+  detail.forEach(function (ligne) {
+    const tr = document.createElement('tr');
+    if (ligne.ligne_determinante) tr.classList.add('ligne-determinante');
+    tr.innerHTML =
+      '<td>' + formaterDateAffichage(ligne.date) + '</td>' +
+      '<td>' + formaterMontant(ligne.solde_depart) + '</td>' +
+      '<td>+ ' + formaterMontant(ligne.cumul_alimentation) + '</td>' +
+      '<td>' + formaterMontant(ligne.cumul_retour) + '</td>' +
+      '<td>' + formaterMontant(ligne.solde_projete) + '</td>' +
+      '<td>' + formaterMontant(ligne.excedent) + '</td>';
+    corps.appendChild(tr);
+  });
 }
 
 function remplirBandeauRecommandation(recommandation) {
