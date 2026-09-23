@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Provisions Revolut — Calculateur</title>
 
+<!-- Favicon : la même goutte d'eau 💧 que le logo de l'appli, encodée en
+     SVG directement dans l'attribut href (pas de fichier .ico séparé à
+     héberger sur GitHub Pages — reste cohérent avec le principe d'un
+     frontend auto-porteur en un seul fichier). -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%92%A7</text></svg>">
+
 <!-- Police douce et lisible, chargée depuis Google Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1078,7 +1084,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.7 — 30/08/2026';
+const VERSION_APP = 'v0.8 — 23/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
