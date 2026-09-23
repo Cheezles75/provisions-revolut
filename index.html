@@ -143,6 +143,17 @@
     border-radius: 999px;
     padding: 2px 10px;
     white-space: nowrap;
+    cursor: default;
+  }
+
+  /* Passe en rouge quand la version du backend (renvoyée par l'action "ping")
+     ne correspond pas à VERSION_APP côté frontend — signe que le déploiement
+     Apps Script et/ou GitHub Pages sert encore une ancienne version. Le titre
+     (survol) précise la version détectée côté backend. */
+  .badge-version.alerte {
+    color: #fff;
+    background: var(--danger);
+    border-color: var(--danger);
   }
 
   .profil-utilisateur {
@@ -1324,7 +1335,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.10 — 23/09/2026';
+const VERSION_APP = 'v0.11 — 23/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1483,6 +1494,7 @@ initialiserListeDevises();
 mettreAJourLibellesMontant();
 document.getElementById('champ-devise').addEventListener('change', mettreAJourLibellesMontant);
 document.getElementById('badge-version').textContent = VERSION_APP;
+verifierVersionBackend();
 
 /* ============================================================================
    CONNEXION GOOGLE (Google Identity Services)
@@ -1572,6 +1584,35 @@ async function appelerAPI(action, parametres) {
     throw new Error(resultat.error || 'Erreur inconnue renvoyée par le serveur.');
   }
   return resultat.data;
+}
+
+// Vérifie que le backend réellement déployé (Apps Script) tourne bien sur la
+// même version que ce frontend, via l'action "ping" (n'exige pas de jeton
+// d'identité, donc fonctionne même avant connexion). En cas d'écart, le badge
+// de version passe en rouge : c'est le symptôme typique d'un déploiement
+// Apps Script non republié après une mise à jour de Code.gs — enregistrer le
+// fichier ne suffit pas, il faut aussi Déployer > Gérer les déploiements >
+// crayon > Nouvelle version > Déployer (l'URL reste la même). Appelée au
+// chargement de la page, indépendamment de la connexion Google.
+async function verifierVersionBackend() {
+  const badge = document.getElementById('badge-version');
+  if (!badge) return;
+  try {
+    const donnees = await appelerAPI('ping', {});
+    if (donnees.version && donnees.version !== VERSION_APP) {
+      badge.classList.add('alerte');
+      badge.title = 'Backend en version "' + donnees.version + '" — republie le déploiement Apps Script (Déployer > Gérer les déploiements > crayon > Nouvelle version > Déployer).';
+    } else {
+      badge.classList.remove('alerte');
+      badge.title = '';
+    }
+  } catch (erreur) {
+    // Le backend ne répond pas du tout (mauvaise URL, déploiement supprimé,
+    // panne réseau...) : signalé aussi en rouge, avec un message distinct
+    // d'un simple écart de version.
+    badge.classList.add('alerte');
+    badge.title = 'Impossible de joindre le backend : ' + erreur.message;
+  }
 }
 
 /* ============================================================================
