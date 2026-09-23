@@ -1335,7 +1335,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.11 — 23/09/2026';
+const VERSION_APP = 'v0.13 — 23/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1599,7 +1599,15 @@ async function verifierVersionBackend() {
   if (!badge) return;
   try {
     const donnees = await appelerAPI('ping', {});
-    if (donnees.version && donnees.version !== VERSION_APP) {
+    if (!donnees.version) {
+      // Un backend à jour renvoie toujours un champ "version" dans son ping
+      // (voir Code.gs) : son absence totale signale un déploiement encore
+      // plus ancien qu'un simple écart de version (antérieur à l'ajout de ce
+      // champ lui-même) — à traiter comme une alerte, pas comme "aucun écart
+      // détecté".
+      badge.classList.add('alerte');
+      badge.title = 'Le backend ne renvoie aucune version (ping sans champ "version") — il s\'agit très probablement d\'un déploiement ancien, antérieur à l\'ajout de ce contrôle. Republie le déploiement Apps Script (Déployer > Gérer les déploiements > crayon > Nouvelle version > Déployer) avec le dernier Code.gs.';
+    } else if (donnees.version !== VERSION_APP) {
       badge.classList.add('alerte');
       badge.title = 'Backend en version "' + donnees.version + '" — republie le déploiement Apps Script (Déployer > Gérer les déploiements > crayon > Nouvelle version > Déployer).';
     } else {
