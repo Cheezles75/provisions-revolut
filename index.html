@@ -394,6 +394,40 @@
   }
   .chip-categorie span.montant-chip { color: var(--primaire-sombre); }
 
+  /* Bloc "État du vault Provisions" : trois mini-statistiques côte à côte
+     (solde théorique / dernier solde constaté / écart), dans le même
+     conteneur-tableau que le reste du tableau de bord. */
+  .grille-etat-vault {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    padding: 4px 26px 24px;
+  }
+
+  .mini-stat .etiquette {
+    color: var(--texte-attenue);
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .mini-stat .valeur {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--texte);
+  }
+
+  /* Écart positif (le vault a plus que nécessaire) en vert, négatif (moins
+     que nécessaire) en rouge — même logique de couleur que le reste de l'appli. */
+  .mini-stat .valeur.positif { color: var(--accent-fonce); }
+  .mini-stat .valeur.negatif { color: var(--danger); }
+
+  .mini-stat .aide { margin-top: 6px; }
+
+  @media (max-width: 760px) {
+    .grille-etat-vault { grid-template-columns: 1fr; }
+  }
+
   /* ==========================================================================
      TABLEAUX (détail provisions + gestion des prélèvements)
      ========================================================================== */
@@ -878,9 +912,39 @@
       <p class="etat-vide" id="etat-vide-detail" style="display:none;">Aucune donnée pour l'instant.</p>
     </div>
 
-    <p class="champ aide" style="margin-top:16px; text-align:center;">
-      Le solde du vault et le virement retour groupé arriveront ici dès que ces calculs seront ajoutés côté backend.
-    </p>
+    <!-- ==========================================================================
+         ÉTAT DU VAULT PROVISIONS — solde théorique (calculé) vs solde réel
+         (saisi manuellement par Charles à partir de son appli Revolut, faute
+         d'accès direct à l'API Revolut). Le solde théorique représente ce qui
+         devrait déjà être accumulé, ligne par ligne, depuis la dernière
+         échéance de chacune (même logique que le calcul de rattrapage fait à
+         l'initialisation, mais recalculée en continu). Le virement retour
+         groupé (vault Provisions → vault Commun) arrivera dans une prochaine
+         version.
+         ========================================================================== -->
+    <div class="conteneur-tableau" style="margin-top:20px;">
+      <div class="entete-carte">
+        <h3>État du vault Provisions</h3>
+        <button class="bouton-secondaire" onclick="ouvrirModaleSoldeVault()">Mettre à jour le solde constaté</button>
+      </div>
+      <div class="grille-etat-vault">
+        <div class="mini-stat">
+          <div class="etiquette">Solde théorique</div>
+          <div class="valeur" id="vault-solde-theorique">—</div>
+          <p class="champ aide">Ce qui devrait déjà être accumulé à date, ligne par ligne, depuis la dernière échéance de chacune.</p>
+        </div>
+        <div class="mini-stat">
+          <div class="etiquette">Dernier solde constaté</div>
+          <div class="valeur" id="vault-solde-constate">—</div>
+          <p class="champ aide" id="vault-date-constat">Aucune saisie pour l'instant.</p>
+        </div>
+        <div class="mini-stat">
+          <div class="etiquette">Écart</div>
+          <div class="valeur" id="vault-ecart">—</div>
+          <p class="champ aide" id="vault-ecart-detail"></p>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ==========================================================================
@@ -1070,6 +1134,27 @@
   </div>
 </div>
 
+<!-- ============================================================================
+     MODALE — saisie manuelle du solde réel du vault Provisions (pas d'accès
+     direct à l'API Revolut : Charles reporte ici ce qu'il voit dans son appli)
+     ============================================================================ -->
+<div class="fond-modale" id="fond-modale-vault">
+  <div class="modale" style="max-width:400px;">
+    <h2>Mettre à jour le solde constaté</h2>
+    <p class="champ aide" style="margin-bottom:18px;">Renseigne le solde actuel du vault "Provisions", tel qu'affiché dans ton appli Revolut.</p>
+    <form id="formulaire-solde-vault" onsubmit="soumettreSoldeVault(event)">
+      <div class="champ">
+        <label for="champ-solde-constate">Solde constaté (€)</label>
+        <input type="number" step="0.01" min="0" id="champ-solde-constate" required>
+      </div>
+      <div class="actions-modale">
+        <button type="button" class="bouton-secondaire" onclick="fermerModaleVault()">Annuler</button>
+        <button type="submit" class="bouton-principal">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -1084,7 +1169,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.8 — 23/09/2026';
+const VERSION_APP = 'v0.9 — 23/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1343,7 +1428,10 @@ async function chargerDonneesInitiales() {
     // On charge d'abord les prélèvements (dates, fréquences...) : le
     // tableau de bord s'appuie dessus pour afficher sa colonne "Date".
     await rafraichirPrelevements();
-    await rafraichirTableauDeBord();
+    // L'état du vault (solde théorique + dernier solde constaté) est
+    // indépendant de la liste des prélèvements côté frontend : le backend
+    // recalcule tout lui-même. On le charge en parallèle du tableau de bord.
+    await Promise.all([rafraichirTableauDeBord(), rafraichirEtatVault()]);
   } catch (erreur) {
     afficherErreur(erreur.message);
   }
@@ -1477,6 +1565,76 @@ function remplirRepartitionCategories(detail) {
       chip.innerHTML = echapper(categorie) + ' <span class="montant-chip">' + formaterMontant(totauxParCategorie[categorie] * facteur) + '</span>';
       conteneur.appendChild(chip);
     });
+}
+
+/* ============================================================================
+   ÉTAT DU VAULT PROVISIONS — solde théorique vs dernier solde constaté
+   ============================================================================ */
+
+// Charge le solde théorique actuel (recalculé à chaque appel par le backend,
+// à partir des lignes actives) et le dernier solde réel que Charles a saisi
+// à la main. L'écart affiché compare ce dernier solde constaté au solde
+// théorique ACTUEL (et non à celui calculé au moment de la saisie) : c'est
+// l'information la plus utile dans l'instant, en supposant qu'aucun virement
+// n'a eu lieu depuis la dernière saisie.
+async function rafraichirEtatVault() {
+  try {
+    const donnees = await appelerAPI('obtenirEtatVault');
+
+    document.getElementById('vault-solde-theorique').textContent = formaterMontant(donnees.solde_theorique_actuel);
+
+    const elementConstate = document.getElementById('vault-solde-constate');
+    const elementDate = document.getElementById('vault-date-constat');
+    const elementEcart = document.getElementById('vault-ecart');
+    const elementEcartDetail = document.getElementById('vault-ecart-detail');
+
+    if (donnees.dernier) {
+      const ecartActuel = donnees.dernier.solde_constate - donnees.solde_theorique_actuel;
+
+      elementConstate.textContent = formaterMontant(donnees.dernier.solde_constate);
+      elementDate.textContent = 'Saisi le ' + formaterDateAffichage(donnees.dernier.date);
+
+      elementEcart.textContent = formaterMontant(ecartActuel);
+      elementEcart.classList.toggle('positif', ecartActuel >= 0);
+      elementEcart.classList.toggle('negatif', ecartActuel < 0);
+      elementEcartDetail.textContent = ecartActuel >= 0
+        ? 'Le vault a au moins ce qui est théoriquement nécessaire pour l\'instant.'
+        : 'Le vault a moins que ce qui est théoriquement nécessaire pour l\'instant.';
+    } else {
+      elementConstate.textContent = '—';
+      elementDate.textContent = 'Aucune saisie pour l\'instant.';
+      elementEcart.textContent = '—';
+      elementEcart.classList.remove('positif', 'negatif');
+      elementEcartDetail.textContent = '';
+    }
+
+    masquerBandeauErreur();
+  } catch (erreur) {
+    afficherErreur(erreur.message);
+  }
+}
+
+function ouvrirModaleSoldeVault() {
+  document.getElementById('formulaire-solde-vault').reset();
+  document.getElementById('fond-modale-vault').classList.add('visible');
+}
+
+function fermerModaleVault() {
+  document.getElementById('fond-modale-vault').classList.remove('visible');
+}
+
+async function soumettreSoldeVault(evenement) {
+  evenement.preventDefault();
+  const solde = Number(document.getElementById('champ-solde-constate').value);
+
+  try {
+    await appelerAPI('enregistrerSoldeVault', { solde_constate: solde });
+    afficherToast('Solde constaté enregistré.');
+    fermerModaleVault();
+    await rafraichirEtatVault();
+  } catch (erreur) {
+    afficherErreur(erreur.message);
+  }
 }
 
 /* ============================================================================
