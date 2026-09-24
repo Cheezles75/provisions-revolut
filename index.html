@@ -602,6 +602,7 @@
     color: var(--texte-attenue);
     white-space: nowrap;
   }
+  .date-echeance-simulation { opacity: 0.65; font-weight: 400; }
 
   /* ==========================================================================
      VIREMENTS À PRÉVOIR — listes "Commun → Vault" (alimentation) et
@@ -1503,7 +1504,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.19 — 24/09/2026';
+const VERSION_APP = 'v0.20 — 24/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -2024,7 +2025,7 @@ function remplirTableauSimulationVault(detail) {
       const liste = document.createElement('ul');
       ligne.echeances.forEach(function (echeance) {
         const li = document.createElement('li');
-        li.innerHTML = '<span>' + echapper(echeance.nom_crediteur) + '</span><span>' + formaterMontant(echeance.montant, echeance.devise) + '</span>';
+        li.innerHTML = '<span>' + echapper(echeance.nom_crediteur) + ' <span class="date-echeance-simulation">(' + formaterJourMois(echeance.date) + ')</span></span><span>' + formaterMontant(echeance.montant, echeance.devise) + '</span>';
         liste.appendChild(li);
       });
       details.appendChild(liste);
@@ -2816,6 +2817,15 @@ function formaterDateAffichage(dateIso) {
   const parties = dateIso.split('-');
   if (parties.length !== 3) return dateIso;
   return parties[2] + '/' + parties[1] + '/' + parties[0];
+}
+
+// Jour/mois seul (sans année) — utilisé dans la sous-liste d'échéances du
+// panneau d'audit, où l'année est déjà donnée par la ligne du tableau.
+function formaterJourMois(dateIso) {
+  if (!dateIso) return '';
+  const parties = dateIso.split('-');
+  if (parties.length !== 3) return dateIso;
+  return parties[2] + '/' + parties[1];
 }
 
 // Retrouve un prélèvement (avec ses dates) à partir de l'id renvoyé dans le
