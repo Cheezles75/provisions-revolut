@@ -1117,7 +1117,9 @@
               <th>Date</th>
               <th>Solde de départ</th>
               <th>+ Alimentation cumulée</th>
+              <th>Δ Alimentation</th>
               <th>− Retours cumulés</th>
+              <th>Δ Retours</th>
               <th>= Solde projeté</th>
               <th>Écart vs marge</th>
             </tr>
@@ -1401,7 +1403,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.14 — 23/09/2026';
+const VERSION_APP = 'v0.15 — 24/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1900,7 +1902,9 @@ function remplirTableauSimulationVault(detail) {
       '<td>' + formaterDateAffichage(ligne.date) + '</td>' +
       '<td>' + formaterMontant(ligne.solde_depart) + '</td>' +
       '<td>+ ' + formaterMontant(ligne.cumul_alimentation) + '</td>' +
+      '<td>' + (ligne.delta_alimentation > 0 ? '+ ' : '') + formaterMontant(ligne.delta_alimentation) + '</td>' +
       '<td>' + formaterMontant(ligne.cumul_retour) + '</td>' +
+      '<td>' + formaterMontant(ligne.delta_retour) + '</td>' +
       '<td>' + formaterMontant(ligne.solde_projete) + '</td>' +
       '<td>' + formaterMontant(ligne.excedent) + '</td>';
     corps.appendChild(tr);
