@@ -102,6 +102,15 @@
     justify-content: center;
   }
 
+  /* Version affichée en bas du pavé de connexion (v0.21) : même badge que
+     dans l'en-tête de l'appli, pour vérifier la version déployée avant même
+     de se connecter (il passe aussi au rouge en cas d'écart avec le backend). */
+  .version-connexion {
+    margin-top: 26px;
+    display: flex;
+    justify-content: center;
+  }
+
   /* ==========================================================================
      STRUCTURE GÉNÉRALE DE L'APPLI
      ========================================================================== */
@@ -764,6 +773,18 @@
   }
 
   tbody tr:last-child td { border-bottom: none; }
+
+  /* Colonne "Date" (v0.21) : prochaine échéance complète jj/mm/aaaa, chiffres
+     à chasse fixe pour que les dates s'alignent proprement les unes sous les
+     autres, et petit suffixe "(FM)" discret pour les fins de mois. */
+  .date-colonne { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .date-colonne.passee { color: var(--texte-attenue); font-style: italic; }
+  .suffixe-fm {
+    font-size: 11.5px;
+    font-weight: 800;
+    color: var(--primaire-sombre);
+    margin-left: 3px;
+  }
   tbody tr.ligne-inactive { opacity: 0.5; }
 
   .badge-mode {
@@ -985,7 +1006,10 @@
     background: #fff;
   }
 
-  .champ .aide {
+  /* ".champ.aide" : cas des paragraphes d'aide qui portent eux-mêmes la
+     classe "champ" (au lieu d'être DANS un .champ) — sans cette variante,
+     ils s'affichaient en texte normal, bien trop gros (corrigé en v0.21). */
+  .champ .aide, .champ.aide {
     font-size: 12.5px;
     color: var(--texte-attenue);
     margin-top: 5px;
@@ -1067,6 +1091,82 @@
   }
 
   /* ==========================================================================
+     RETOUR VISUEL DES BOUTONS (v0.21)
+     - Survol d'un bouton cliquable : légèrement plus foncé.
+     - Clic pris en compte : le bouton s'éclaircit (classe "en-cours",
+       posée par avecChargement() côté JS), devient non cliquable, et affiche
+       un petit cercle de points qui tourne.
+     - Action terminée : tout revient à la normale, le survol refonce le
+       bouton — c'est le signal qu'on peut recliquer.
+     ========================================================================== */
+  .bouton-principal { transition: background 0.15s, transform 0.1s, opacity 0.15s; }
+  .bouton-principal:hover:not(:disabled) { background: var(--primaire-sombre); }
+  .bouton-secondaire { transition: background 0.15s, color 0.15s, opacity 0.15s; }
+  .bouton-secondaire:hover:not(:disabled) { background: #e2e9f5; color: var(--texte); }
+  nav.onglets button:not(.actif):hover { background: #e9effa; color: var(--texte); }
+  nav.onglets button.actif:hover { background: var(--primaire-sombre); }
+  .toggle-periode button:not(.actif):hover { background: var(--surface-douce); color: var(--texte); }
+  .toggle-periode button.actif:hover { background: var(--accent-fonce); }
+  .segmented button:not(.actif):hover { background: #e6edf9; color: var(--texte); }
+  .segmented button.actif:hover { background: var(--primaire-sombre); }
+  #bandeau-erreur button:hover { background: #8a372e; }
+  .entete-mouvement { transition: background 0.15s, opacity 0.15s; }
+  .entete-mouvement:hover { background: #eaf0fa; }
+  .entete-mouvement.fait:hover { background: #e0f2e8; }
+  .case-toggle { transition: opacity 0.15s; }
+
+  /* Petit enfoncement au clic, pour sentir que le clic a bien été reçu. */
+  .bouton-principal:active:not(:disabled),
+  .bouton-secondaire:active:not(:disabled),
+  .bouton-mini:active:not(:disabled) { transform: scale(0.96); }
+
+  /* Action en cours : bouton éclairci, curseur "chargement", plus aucun
+     survol ni clic possible jusqu'à la fin de l'action. */
+  .en-cours {
+    opacity: 0.6;
+    cursor: progress !important;
+    pointer-events: none;
+    transform: none !important;
+  }
+  .bouton-principal.en-cours { background: var(--primaire); box-shadow: none; }
+  .bouton-mini.en-cours { opacity: 0.85; background: var(--surface-douce) !important; color: var(--primaire-sombre) !important; }
+  /* Bouton icône seule : le cercle de points remplace l'icône le temps de
+     l'action, pour que le bouton garde exactement la même taille. */
+  .bouton-mini.en-cours > svg { display: none; }
+
+  /* Cercle de 8 points qui tourne (par à-coups, un point à la fois), dont
+     l'opacité décroît pour donner l'impression d'une traînée. Couleur =
+     celle du texte du bouton (currentColor), donc lisible partout. */
+  .spinner-points {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    flex: none;
+    vertical-align: middle;
+    animation: rotation-spinner-points 0.9s steps(8) infinite;
+  }
+  .spinner-points i {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 3.4px;
+    height: 3.4px;
+    margin: -1.7px 0 0 -1.7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .spinner-points i:nth-child(1) { transform: rotate(0deg) translateY(-6px); opacity: 1; }
+  .spinner-points i:nth-child(2) { transform: rotate(45deg) translateY(-6px); opacity: 0.88; }
+  .spinner-points i:nth-child(3) { transform: rotate(90deg) translateY(-6px); opacity: 0.76; }
+  .spinner-points i:nth-child(4) { transform: rotate(135deg) translateY(-6px); opacity: 0.64; }
+  .spinner-points i:nth-child(5) { transform: rotate(180deg) translateY(-6px); opacity: 0.52; }
+  .spinner-points i:nth-child(6) { transform: rotate(225deg) translateY(-6px); opacity: 0.40; }
+  .spinner-points i:nth-child(7) { transform: rotate(270deg) translateY(-6px); opacity: 0.28; }
+  .spinner-points i:nth-child(8) { transform: rotate(315deg) translateY(-6px); opacity: 0.16; }
+  @keyframes rotation-spinner-points { to { transform: rotate(-360deg); } }
+
+  /* ==========================================================================
      RESPONSIVE
      ========================================================================== */
   @media (max-width: 900px) {
@@ -1094,6 +1194,7 @@
     <h1>Provisions Revolut</h1>
     <p class="sous-titre">Calcule combien virer chaque mois sur ton vault "Provisions" pour ne jamais être pris de court par un prélèvement.</p>
     <div id="bouton-google"></div>
+    <div class="version-connexion"><span class="badge-version"></span></div>
   </div>
 </div>
 
@@ -1181,7 +1282,7 @@
           <div class="etiquette">Marge de sécurité</div>
           <div class="ligne-marge-securite">
             <input type="number" id="champ-marge-securite" step="1" min="0">
-            <button class="bouton-mini" onclick="enregistrerMargeSecurite()" title="Enregistrer">
+            <button class="bouton-mini" onclick="avecChargement(this, enregistrerMargeSecurite)" title="Enregistrer">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </button>
           </div>
@@ -1243,7 +1344,7 @@
     <div class="conteneur-tableau" style="margin-top:20px;">
       <div class="entete-carte">
         <h3>Virements à prévoir</h3>
-        <button class="bouton-mini" onclick="rafraichirPlanVault()" title="Recalculer">
+        <button class="bouton-mini" onclick="avecChargement(this, rafraichirPlanVault)" title="Recalculer">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         </button>
       </div>
@@ -1260,7 +1361,7 @@
     <div class="conteneur-tableau" style="margin-top:20px;">
       <div class="entete-carte">
         <h3>Détail par prélèvement</h3>
-        <button class="bouton-mini" onclick="rafraichirTableauDeBord()" title="Recalculer">
+        <button class="bouton-mini" onclick="avecChargement(this, rafraichirTableauDeBord)" title="Recalculer">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         </button>
       </div>
@@ -1293,7 +1394,7 @@
           Ajouter un prélèvement
         </button>
         <label class="case-toggle">
-          <input type="checkbox" id="case-inclure-inactifs" onchange="rafraichirPrelevements()">
+          <input type="checkbox" id="case-inclure-inactifs" onchange="avecChargement(this.parentElement, rafraichirPrelevements)">
           Afficher aussi les prélèvements désactivés
         </label>
       </div>
@@ -1367,13 +1468,24 @@
           </div>
           <div class="champ">
             <label for="champ-espacement-classique">Période (mois)</label>
-            <input type="number" step="1" min="1" value="1" id="champ-espacement-classique">
+            <input type="number" step="1" min="1" value="1" id="champ-espacement-classique" oninput="basculerChampFinDeMois()">
           </div>
         </div>
         <div class="ligne-deux-champs">
-          <div class="champ">
-            <label for="champ-date-debut">Date de début</label>
-            <input type="date" id="champ-date-debut">
+          <div>
+            <div class="champ" id="conteneur-date-debut">
+              <label for="champ-date-debut">Date de début</label>
+              <input type="date" id="champ-date-debut">
+            </div>
+            <!-- Remplace "Date de début" quand "Dernier jour du mois" est cochée
+                 ET que la période est d'au moins 2 mois (v0.21) : il faut
+                 alors savoir QUELS mois tombe l'échéance (ex. fin octobre,
+                 fin décembre, fin février... pour un bimestriel). Liste des
+                 prochains mois, remplie par remplirSelecteurMoisFinDeMois(). -->
+            <div class="champ" id="conteneur-mois-fin-mois" style="display:none;">
+              <label for="champ-mois-fin-mois">Mois de la prochaine échéance</label>
+              <select id="champ-mois-fin-mois"></select>
+            </div>
           </div>
           <div class="champ">
             <!-- Cochée : la date ci-contre est vidée et désactivée, puisqu'elle
@@ -1385,7 +1497,7 @@
             </label>
           </div>
         </div>
-        <p class="champ aide">Provision mensuelle = montant ÷ espacement en mois. Exemples : 1 (mensuel), 3 (trimestriel), 6 (semestriel), 12 (annuel). Une date de début décochée "Dernier jour du mois" (ex. le 31) reste valable même les mois plus courts : l'appli s'aligne alors sur le dernier jour disponible de ce mois-là.</p>
+        <p class="champ aide">Provision mensuelle = montant ÷ espacement en mois. Exemples : 1 (mensuel), 3 (trimestriel), 6 (semestriel), 12 (annuel). Une date de début décochée "Dernier jour du mois" (ex. le 31) reste valable même les mois plus courts : l'appli s'aligne alors sur le dernier jour disponible de ce mois-là. En "Dernier jour du mois" avec une période d'au moins 2 mois, indique le mois de la prochaine échéance : les suivantes s'en déduisent.</p>
       </div>
 
       <!-- Champs spécifiques au mode "échéance connue" -->
@@ -1504,7 +1616,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.20 — 24/09/2026';
+const VERSION_APP = 'v0.21 — 24/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1652,17 +1764,60 @@ function mettreAJourLibellesMontant() {
 // rien dire (l'échéance est justement le dernier jour du mois, quel qu'il
 // soit) : on la vide et on la désactive pour éviter toute confusion. On la
 // réactive normalement si la case est décochée.
-function basculerChampFinDeMois() {
+//
+// v0.21 : si en plus la période est d'au moins 2 mois, le JOUR ne compte
+// plus mais le MOIS, lui, compte (fin octobre / fin décembre... n'est pas
+// fin septembre / fin novembre...). Le champ date est alors remplacé par une
+// liste déroulante "Mois de la prochaine échéance". Appelée aussi à chaque
+// saisie dans "Période (mois)", pour faire apparaître/disparaître ce choix.
+// "moisSouhaite" (facultatif, "AAAA-MM") : mois à présélectionner — utilisé
+// à l'ouverture d'une ligne existante ; sinon on conserve le choix en cours.
+function basculerChampFinDeMois(moisSouhaite) {
   const caseCochee = document.getElementById('champ-fin-mois').checked;
   const champDate = document.getElementById('champ-date-debut');
+  const espacement = parseInt(document.getElementById('champ-espacement-classique').value, 10) || 1;
+  const avecChoixDuMois = caseCochee && espacement >= 2;
+
   champDate.disabled = caseCochee;
   if (caseCochee) champDate.value = '';
+
+  document.getElementById('conteneur-date-debut').style.display = avecChoixDuMois ? 'none' : '';
+  document.getElementById('conteneur-mois-fin-mois').style.display = avecChoixDuMois ? '' : 'none';
+  const selecteur = document.getElementById('champ-mois-fin-mois');
+  selecteur.required = avecChoixDuMois; // le navigateur bloque l'envoi tant qu'aucun mois n'est choisi
+  if (avecChoixDuMois) {
+    remplirSelecteurMoisFinDeMois(moisSouhaite !== undefined ? moisSouhaite : selecteur.value, espacement);
+  }
+}
+
+// Remplit la liste "Mois de la prochaine échéance" avec les mois à venir, à
+// partir du mois en cours (dont le dernier jour n'est jamais passé) : au
+// moins 12 mois, et davantage si la période dépasse un an, pour que la
+// prochaine échéance soit toujours sélectionnable. Chaque option porte
+// l'année ("octobre 2026"), sans ambiguïté possible quand la période ne
+// divise pas 12 (ex. tous les 5 mois).
+function remplirSelecteurMoisFinDeMois(moisAPreselectionner, espacement) {
+  const selecteur = document.getElementById('champ-mois-fin-mois');
+  selecteur.innerHTML = '';
+  selecteur.appendChild(new Option('— Choisir le mois —', ''));
+
+  const aujourdHui = new Date();
+  const nombreDeMois = Math.max(12, espacement || 1);
+  for (let i = 0; i < nombreDeMois; i++) {
+    const premierDuMois = new Date(aujourdHui.getFullYear(), aujourdHui.getMonth() + i, 1);
+    const valeur = formaterDateISO(premierDuMois).slice(0, 7); // "AAAA-MM"
+    const libelle = premierDuMois.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    selecteur.appendChild(new Option(libelle, valeur));
+  }
+  // Si le mois demandé n'est pas dans la liste (vide, ou déjà passé), le
+  // navigateur retombe tout seul sur "— Choisir le mois —".
+  selecteur.value = moisAPreselectionner || '';
 }
 
 initialiserListeDevises();
 mettreAJourLibellesMontant();
 document.getElementById('champ-devise').addEventListener('change', mettreAJourLibellesMontant);
-document.getElementById('badge-version').textContent = VERSION_APP;
+document.querySelectorAll('.badge-version').forEach(function (badge) { badge.textContent = VERSION_APP; });
 verifierVersionBackend();
 
 /* ============================================================================
@@ -1764,8 +1919,16 @@ async function appelerAPI(action, parametres) {
 // crayon > Nouvelle version > Déployer (l'URL reste la même). Appelée au
 // chargement de la page, indépendamment de la connexion Google.
 async function verifierVersionBackend() {
-  const badge = document.getElementById('badge-version');
-  if (!badge) return;
+  // Deux badges affichent la version (v0.21) : celui du pavé de connexion et
+  // celui de l'en-tête de l'appli — ils reçoivent le même diagnostic.
+  const badges = document.querySelectorAll('.badge-version');
+  if (!badges.length) return;
+  function signaler(alerte, message) {
+    badges.forEach(function (badge) {
+      badge.classList.toggle('alerte', alerte);
+      badge.title = message;
+    });
+  }
   try {
     const donnees = await appelerAPI('ping', {});
     if (!donnees.version) {
@@ -1774,21 +1937,59 @@ async function verifierVersionBackend() {
       // plus ancien qu'un simple écart de version (antérieur à l'ajout de ce
       // champ lui-même) — à traiter comme une alerte, pas comme "aucun écart
       // détecté".
-      badge.classList.add('alerte');
-      badge.title = 'Le backend ne renvoie aucune version (ping sans champ "version") — il s\'agit très probablement d\'un déploiement ancien, antérieur à l\'ajout de ce contrôle. Republie le déploiement Apps Script (Déployer > Gérer les déploiements > crayon > Nouvelle version > Déployer) avec le dernier Code.gs.';
+      signaler(true, 'Le backend ne renvoie aucune version (ping sans champ "version") — il s\'agit très probablement d\'un déploiement ancien, antérieur à l\'ajout de ce contrôle. Republie le déploiement Apps Script (Déployer > Gérer les déploiements > crayon > Nouvelle version > Déployer) avec le dernier Code.gs.');
     } else if (donnees.version !== VERSION_APP) {
-      badge.classList.add('alerte');
-      badge.title = 'Backend en version "' + donnees.version + '" — republie le déploiement Apps Script (Déployer > Gérer les déploiements > crayon > Nouvelle version > Déployer).';
+      signaler(true, 'Backend en version "' + donnees.version + '" — republie le déploiement Apps Script (Déployer > Gérer les déploiements > crayon > Nouvelle version > Déployer).');
     } else {
-      badge.classList.remove('alerte');
-      badge.title = '';
+      signaler(false, '');
     }
   } catch (erreur) {
     // Le backend ne répond pas du tout (mauvaise URL, déploiement supprimé,
     // panne réseau...) : signalé aussi en rouge, avec un message distinct
     // d'un simple écart de version.
-    badge.classList.add('alerte');
-    badge.title = 'Impossible de joindre le backend : ' + erreur.message;
+    signaler(true, 'Impossible de joindre le backend : ' + erreur.message);
+  }
+}
+
+/* ============================================================================
+   RETOUR VISUEL PENDANT UNE ACTION (v0.21)
+   ============================================================================ */
+
+// Enveloppe une action asynchrone (appel au backend...) déclenchée par un
+// élément cliquable : pendant toute la durée de l'action, l'élément passe à
+// l'état "en cours" (éclairci, non cliquable, petit cercle de points qui
+// tourne — voir CSS "RETOUR VISUEL DES BOUTONS"), puis revient à la normale
+// quand l'action est terminée, qu'elle ait réussi ou échoué. Protège aussi
+// du double-clic : un second clic pendant l'action est ignoré.
+// "element" : un bouton, ou un conteneur (label d'une case à cocher) dont
+// les champs internes sont désactivés le temps de l'action.
+async function avecChargement(element, action) {
+  if (!element || element.classList.contains('en-cours')) return;
+
+  const champsDesactives = [];
+  if (element.matches('button, input')) champsDesactives.push(element);
+  element.querySelectorAll('button, input').forEach(function (champ) { champsDesactives.push(champ); });
+  const etatsInitiaux = champsDesactives.map(function (champ) { return champ.disabled; });
+
+  const spinner = document.createElement('span');
+  spinner.className = 'spinner-points';
+  spinner.setAttribute('aria-hidden', 'true');
+  spinner.innerHTML = '<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>';
+
+  element.classList.add('en-cours');
+  element.setAttribute('aria-busy', 'true');
+  element.prepend(spinner);
+  champsDesactives.forEach(function (champ) { champ.disabled = true; });
+
+  try {
+    return await action();
+  } finally {
+    // L'élément a pu être retiré de la page entre-temps (tableau redessiné
+    // après l'action) : sans conséquence, on nettoie quand même.
+    spinner.remove();
+    element.classList.remove('en-cours');
+    element.removeAttribute('aria-busy');
+    champsDesactives.forEach(function (champ, index) { champ.disabled = etatsInitiaux[index]; });
   }
 }
 
@@ -2107,7 +2308,9 @@ function creerCarteMouvement(mouvement, type) {
   const caseAcocher = document.createElement('input');
   caseAcocher.type = 'checkbox';
   caseAcocher.checked = !!mouvement.fait;
-  caseAcocher.onchange = function () { basculerMouvementVault(type, date, montant, mouvement, caseAcocher.checked, entete); };
+  caseAcocher.onchange = function () {
+    avecChargement(entete, function () { return basculerMouvementVault(type, date, montant, mouvement, caseAcocher.checked, entete); });
+  };
   entete.appendChild(caseAcocher);
 
   if (mouvement.en_retard) {
@@ -2201,15 +2404,18 @@ function fermerModaleVault() {
 async function soumettreSoldeVault(evenement) {
   evenement.preventDefault();
   const solde = Number(document.getElementById('champ-solde-constate').value);
+  const boutonEnvoi = evenement.submitter || document.querySelector('#formulaire-solde-vault [type="submit"]');
 
-  try {
-    await appelerAPI('enregistrerSoldeVault', { solde_constate: solde });
-    afficherToast('Solde constaté enregistré.');
-    fermerModaleVault();
-    await rafraichirPlanVault();
-  } catch (erreur) {
-    afficherErreur(erreur.message);
-  }
+  await avecChargement(boutonEnvoi, async function () {
+    try {
+      await appelerAPI('enregistrerSoldeVault', { solde_constate: solde });
+      afficherToast('Solde constaté enregistré.');
+      fermerModaleVault();
+      await rafraichirPlanVault();
+    } catch (erreur) {
+      afficherErreur(erreur.message);
+    }
+  });
 }
 
 /* ============================================================================
@@ -2417,31 +2623,37 @@ function creerBoutonAction(type, prelevement) {
   } else if (type === 'desactiver') {
     bouton.classList.add('danger');
     bouton.title = 'Désactiver';
-    bouton.onclick = function () { desactiverEtRafraichir(prelevement); };
+    bouton.onclick = function () { desactiverEtRafraichir(prelevement, bouton); };
   } else {
     bouton.classList.add('accent');
     bouton.title = 'Réactiver';
-    bouton.onclick = function () { reactiverEtRafraichir(prelevement); };
+    bouton.onclick = function () { avecChargement(bouton, function () { return reactiverEtRafraichir(prelevement); }); };
   }
   return bouton;
 }
 
-async function desactiverEtRafraichir(prelevement) {
+async function desactiverEtRafraichir(prelevement, bouton) {
+  // Confirmation d'abord : l'état "en cours" ne s'affiche qu'une fois
+  // l'action réellement lancée.
   if (!confirm('Désactiver "' + prelevement.nom_crediteur + '" ? Il ne sera plus provisionné, mais reste conservé dans l\'historique.')) return;
-  try {
-    await appelerAPI('desactiverPrelevement', { id: prelevement.id });
-    afficherToast('Prélèvement désactivé.');
-    await Promise.all([rafraichirPrelevements(), rafraichirTableauDeBord()]);
-  } catch (erreur) {
-    afficherErreur(erreur.message);
-  }
+  await avecChargement(bouton, async function () {
+    try {
+      await appelerAPI('desactiverPrelevement', { id: prelevement.id });
+      afficherToast('Prélèvement désactivé.');
+      await rafraichirPrelevements(); // d'abord : le tableau de bord y puise sa colonne "Date"
+    await rafraichirTableauDeBord();
+    } catch (erreur) {
+      afficherErreur(erreur.message);
+    }
+  });
 }
 
 async function reactiverEtRafraichir(prelevement) {
   try {
     await appelerAPI('modifierPrelevement', { id: prelevement.id, prelevement: { actif: 'oui' } });
     afficherToast('Prélèvement réactivé.');
-    await Promise.all([rafraichirPrelevements(), rafraichirTableauDeBord()]);
+    await rafraichirPrelevements(); // d'abord : le tableau de bord y puise sa colonne "Date"
+    await rafraichirTableauDeBord();
   } catch (erreur) {
     afficherErreur(erreur.message);
   }
@@ -2457,7 +2669,7 @@ function ouvrirModaleAjout() {
   document.getElementById('formulaire-prelevement').reset();
   document.getElementById('champ-espacement-classique').value = '1';
   document.getElementById('champ-fin-mois').checked = false;
-  basculerChampFinDeMois(); // réactive le champ date s'il était resté désactivé d'une session précédente
+  basculerChampFinDeMois(''); // réactive le champ date s'il était resté désactivé d'une session précédente
   document.getElementById('champ-montant-identique').checked = true;
   basculerMontantIdentique(); // masque les champs montant individuels de la liste
   mettreAJourLibellesMontant(); // la devise revient à EUR par défaut via reset()
@@ -2512,7 +2724,10 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
     document.getElementById('champ-espacement-classique').value = espacementEquivalent(prelevement);
     document.getElementById('champ-date-debut').value = prelevement.date_debut || '';
     document.getElementById('champ-fin-mois').checked = !!prelevement.fin_de_mois;
-    basculerChampFinDeMois(); // synchronise l'état désactivé/vidé du champ date avec la case
+    // Synchronise l'état désactivé/vidé du champ date avec la case, et
+    // présélectionne le mois de la prochaine échéance (calculée par le
+    // backend) pour une ligne en fin de mois de période ≥ 2 mois.
+    basculerChampFinDeMois(prelevement.fin_de_mois && prelevement.prochaine_echeance ? prelevement.prochaine_echeance.slice(0, 7) : '');
     document.getElementById('champ-montant-identique').checked = true;
     basculerMontantIdentique();
     ajouterChampDate(); // liste prête si l'utilisateur bascule vers "Échéance connue"
@@ -2729,6 +2944,27 @@ async function soumettreFormulaire(evenement) {
     donnees.nb_echeances_par_an = Math.round((12 / espacementMois) * 100) / 100;
     donnees.date_debut = document.getElementById('champ-date-debut').value;
     donnees.fin_de_mois = document.getElementById('champ-fin-mois').checked ? 'oui' : 'non';
+
+    // v0.21 — "Dernier jour du mois" : date_debut n'est plus vidée mais
+    // renseignée avec le dernier jour du mois de la prochaine échéance. Elle
+    // sert d'ancre au backend pour dérouler toutes les échéances suivantes
+    // (auparavant, faute d'ancre, il se rabattait sur la date de dernière
+    // modification de la ligne — d'où des mois d'échéance qui "glissaient").
+    // Période de 1 mois : le mois n'a pas d'importance, on prend le mois en cours.
+    if (donnees.fin_de_mois === 'oui') {
+      let premierDuMois;
+      if (espacementMois >= 2) {
+        const moisChoisi = document.getElementById('champ-mois-fin-mois').value;
+        if (!moisChoisi) {
+          afficherErreur('Choisis le mois de la prochaine échéance (ligne en fin de mois, tous les ' + espacementMois + ' mois).');
+          return;
+        }
+        premierDuMois = new Date(moisChoisi + '-01T00:00:00');
+      } else {
+        premierDuMois = new Date();
+      }
+      donnees.date_debut = formaterDateISO(dernierJourDuMois(premierDuMois));
+    }
   } else {
     const montantIdentique = document.getElementById('champ-montant-identique').checked;
     const montantUnique = Number(document.getElementById('champ-montant-echeance').value) || 0;
@@ -2779,19 +3015,28 @@ async function soumettreFormulaire(evenement) {
     }
   }
 
-  try {
-    if (idEnEdition) {
-      await appelerAPI('modifierPrelevement', { id: idEnEdition, prelevement: donnees });
-      afficherToast('Prélèvement modifié.');
-    } else {
-      await appelerAPI('ajouterPrelevement', { prelevement: donnees });
-      afficherToast('Prélèvement ajouté.');
+  // Bouton "Enregistrer" en état "en cours" pendant l'enregistrement ET le
+  // rafraîchissement qui suit, pour que Charles voie bien quand c'est fini.
+  const boutonEnvoi = evenement.submitter || document.querySelector('#formulaire-prelevement [type="submit"]');
+  await avecChargement(boutonEnvoi, async function () {
+    try {
+      if (idEnEdition) {
+        await appelerAPI('modifierPrelevement', { id: idEnEdition, prelevement: donnees });
+        afficherToast('Prélèvement modifié.');
+      } else {
+        await appelerAPI('ajouterPrelevement', { prelevement: donnees });
+        afficherToast('Prélèvement ajouté.');
+      }
+      fermerModale();
+      // Le plan du vault dépend aussi de la liste des prélèvements : on le
+      // recalcule dans la foulée.
+      // Prélèvements d'abord : le tableau de bord y puise sa colonne "Date".
+      await rafraichirPrelevements();
+      await Promise.all([rafraichirTableauDeBord(), rafraichirPlanVault()]);
+    } catch (erreur) {
+      afficherErreur(erreur.message);
     }
-    fermerModale();
-    await Promise.all([rafraichirPrelevements(), rafraichirTableauDeBord()]);
-  } catch (erreur) {
-    afficherErreur(erreur.message);
-  }
+  });
 }
 
 /* ============================================================================
@@ -2834,32 +3079,30 @@ function obtenirPrelevementParId(id) {
   return prelevementsActuels.find(function (p) { return p.id === id; }) || null;
 }
 
-// Colonne "Date" : le jour du prélèvement s'il est mensuel, sinon jour/mois.
+// Colonne "Date" (v0.21, identique dans les deux onglets) : la prochaine
+// échéance complète au format jj/mm/aaaa, calculée par le backend
+// (prochaine_echeance, voir calculerProchaineEcheance dans Code.gs — la même
+// logique que pour le plan du vault). Suivie d'un petit "(FM)" quand elle
+// tombe un dernier jour du mois. Une ligne "échéance connue" dont toutes
+// les échéances sont passées affiche sa dernière date, en grisé italique.
 function formaterColonneDate(prelevement) {
-  if (!prelevement) return '—';
+  if (!prelevement || !prelevement.prochaine_echeance) return '—';
 
-  if (prelevement.mode === 'classique') {
-    if (prelevement.fin_de_mois) return 'Fin de mois';
-    if (!prelevement.date_debut) return '—';
-    const date = new Date(prelevement.date_debut + 'T00:00:00');
-    if (espacementEquivalent(prelevement) === 1) return String(date.getDate());
-    return String(date.getDate()).padStart(2, '0') + '/' + String(date.getMonth() + 1).padStart(2, '0');
+  let html = formaterDateAffichage(prelevement.prochaine_echeance);
+  if (prelevement.prochaine_echeance_fin_de_mois) {
+    html += '<span class="suffixe-fm" title="Dernier jour du mois">(FM)</span>';
   }
-
-  // Mode "échéance connue" : on affiche la prochaine échéance (jour/mois).
-  if (!prelevement.date_premiere_echeance) return '—';
-  const date = new Date(prelevement.date_premiere_echeance + 'T00:00:00');
-  return String(date.getDate()).padStart(2, '0') + '/' + String(date.getMonth() + 1).padStart(2, '0');
+  const passee = !!prelevement.echeances_toutes_passees;
+  const titre = passee ? 'Dernière échéance (toutes les échéances sont passées)' : 'Prochaine échéance';
+  return '<span class="date-colonne' + (passee ? ' passee' : '') + '" title="' + titre + '">' + html + '</span>';
 }
 
-// Clé numérique (mois × 100 + jour) utilisée pour trier la colonne "Date"
-// dans l'ordre chronologique de l'année, sans dépendre de l'année elle-même.
+// Clé de tri de la colonne "Date" : la prochaine échéance au format ISO
+// (AAAA-MM-JJ), qui se trie naturellement dans l'ordre chronologique réel
+// (le 2 octobre avant le 19 octobre, octobre avant janvier de l'année
+// suivante...). Une ligne sans date part en fin de liste.
 function cleTriDate(prelevement) {
-  if (!prelevement) return -1;
-  const dateBase = prelevement.mode === 'classique' ? prelevement.date_debut : prelevement.date_premiere_echeance;
-  if (!dateBase) return -1;
-  const date = new Date(dateBase + 'T00:00:00');
-  return (date.getMonth() + 1) * 100 + date.getDate();
+  return prelevement && prelevement.prochaine_echeance ? prelevement.prochaine_echeance : '9999-12-31';
 }
 
 // Tri générique réutilisé par les deux tableaux : "cles" associe chaque nom
