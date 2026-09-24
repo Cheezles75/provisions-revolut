@@ -456,9 +456,12 @@
   .ligne-marge-securite input[type="number"]:focus { outline: none; border-color: var(--primaire); }
 
   /* Bandeau de recommandation ("Ajouter X€", "Retirer X€", "Équilibré") :
-     couleur douce selon le cas, pour attirer l'œil sans être alarmiste. */
+     couleur douce selon le cas, pour attirer l'œil sans être alarmiste.
+     Placé dans ".ligne-recommandation-audit" (ci-dessous) aux côtés du
+     toggle d'affichage du panneau d'audit — c'est ce conteneur qui porte
+     désormais la marge extérieure, pour que le toggle reste bien aligné
+     même quand la recommandation est masquée (cas "équilibré"). */
   .bandeau-recommandation {
-    margin: 0 26px 22px;
     padding: 14px 18px;
     border-radius: var(--rayon-petit);
     font-weight: 700;
@@ -471,24 +474,70 @@
   .bandeau-recommandation.retrait { background: #fff6ea; color: #96692c; }
   .bandeau-recommandation.equilibre { background: #eef8f2; color: #3f7a5e; }
 
+  .ligne-recommandation-audit {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin: 0 26px 22px;
+  }
+  .ligne-recommandation-audit .bandeau-recommandation { flex: 1 1 auto; min-width: 220px; }
+
+  /* Toggle "joli slider" pour afficher/masquer le panneau d'audit — toujours
+     collé à droite (margin-left: auto), y compris quand la recommandation
+     est masquée (cas "équilibré", bandeau en display:none). */
+  .toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-left: auto;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .toggle-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .toggle-piste {
+    position: relative;
+    width: 40px;
+    height: 23px;
+    background: #d8deea;
+    border-radius: 999px;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+  }
+  .toggle-piste::before {
+    content: '';
+    position: absolute;
+    top: 2.5px;
+    left: 2.5px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.22);
+    transition: transform 0.2s ease;
+  }
+  .toggle-switch input:checked + .toggle-piste { background: var(--primaire); }
+  .toggle-switch input:checked + .toggle-piste::before { transform: translateX(17px); }
+  .toggle-texte { font-size: 13.5px; font-weight: 700; color: var(--texte-attenue); white-space: nowrap; }
+
   @media (max-width: 760px) {
     .grille-etat-vault { grid-template-columns: 1fr; }
   }
 
   /* ==========================================================================
-     PANNEAU D'AUDIT TEMPORAIRE — détail de la simulation qui produit la
-     recommandation (ajouter/retirer), demandé par Charles pour vérifier "à
-     la main" un montant qu'il soupçonnait surestimé. Bordure en tirets +
-     bandeau ambré pour bien signaler que ce panneau est provisoire, prévu
-     pour être retiré une fois le calcul validé (voir backlog).
+     PANNEAU D'AUDIT — détail de la simulation qui produit la recommandation
+     (ajouter/retirer). Conservé de façon permanente (masquable via le
+     toggle ci-dessus) — bordure en tirets pour le distinguer visuellement
+     des autres cartes, sans connotation d'alerte/provisoire.
      ========================================================================== */
-  .panneau-debug-temporaire { border: 2px dashed #c9a13b; }
-  .panneau-debug-temporaire .entete-carte { border-bottom-color: #e3cd8f; }
-  .avertissement-temporaire {
+  .panneau-audit-vault { border: 2px dashed var(--bordure); }
+  .panneau-audit-vault .entete-carte { border-bottom-color: var(--bordure); }
+  .description-panneau-audit {
     margin: 0 26px 14px;
     font-size: 13px;
-    color: #8a6d1f;
-    background: #fff6de;
+    color: var(--texte-attenue);
+    background: var(--surface-douce);
     border-radius: var(--rayon-petit);
     padding: 10px 14px;
     line-height: 1.5;
@@ -511,6 +560,48 @@
     font-weight: 800;
   }
   .tableau-simulation-vault tr.ligne-determinante td { color: var(--danger); font-weight: 800; }
+
+  /* Sous-liste (dé)pliable des échéances d'un virement retour, dans la
+     dernière colonne du tableau d'audit — même principe que
+     ".details-mouvement"/".detail-mouvement" utilisées pour "Virements à
+     prévoir", adapté au format compact d'une cellule de tableau. */
+  .tableau-simulation-vault td.cellule-echeances { text-align: left; white-space: normal; }
+  .details-simulation summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--primaire-sombre);
+    white-space: nowrap;
+  }
+  .details-simulation summary::-webkit-details-marker { display: none; }
+  .details-simulation summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 5px;
+    transition: transform 0.15s;
+  }
+  .details-simulation[open] summary::before { transform: rotate(90deg); }
+  .details-simulation ul {
+    list-style: none;
+    margin: 8px 0 2px;
+    padding: 8px 10px;
+    background: var(--surface-douce);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 230px;
+  }
+  .details-simulation li {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--texte-attenue);
+    white-space: nowrap;
+  }
 
   /* ==========================================================================
      VIREMENTS À PRÉVOIR — listes "Commun → Vault" (alimentation) et
@@ -1096,20 +1187,28 @@
           <p class="champ aide">Minimum à conserver dans le vault après chaque virement retour.</p>
         </div>
       </div>
-      <div class="bandeau-recommandation" id="bandeau-recommandation-vault" style="display:none;"></div>
+      <div class="ligne-recommandation-audit">
+        <div class="bandeau-recommandation" id="bandeau-recommandation-vault" style="display:none;"></div>
+        <label class="toggle-switch" title="Afficher / masquer le détail du calcul de recommandation">
+          <input type="checkbox" id="case-afficher-audit" onchange="basculerPanneauAudit()">
+          <span class="toggle-piste"></span>
+          <span class="toggle-texte">Détail du calcul</span>
+        </label>
+      </div>
     </div>
 
     <!-- ==========================================================================
-         PANNEAU D'AUDIT TEMPORAIRE — détail ligne par ligne du calcul qui
-         mène à la recommandation ci-dessus, demandé par Charles pour
-         vérifier un montant soupçonné surestimé. À retirer une fois validé
-         (voir backlog, section Qualité/outillage).
+         PANNEAU D'AUDIT — détail ligne par ligne du calcul qui mène à la
+         recommandation ci-dessus (ajouter/retirer). Demandé au départ par
+         Charles pour vérifier un montant soupçonné surestimé, conservé de
+         façon permanente par la suite — masquable via le toggle ci-dessus
+         (état retenu d'une visite à l'autre, dans le navigateur).
          ========================================================================== -->
-    <div class="conteneur-tableau panneau-debug-temporaire" style="margin-top:20px;" id="carte-simulation-vault">
+    <div class="conteneur-tableau panneau-audit-vault" style="margin-top:20px;" id="carte-simulation-vault">
       <div class="entete-carte">
-        <h3>🔧 Détail du calcul de recommandation (temporaire)</h3>
+        <h3>🔍 Détail du calcul de recommandation</h3>
       </div>
-      <p class="avertissement-temporaire">Panneau de vérification provisoire : il expose, virement retour par virement retour sur les 12 prochains mois, le calcul exact qui produit la recommandation ci-dessus. Il sera retiré une fois que tu l'auras validé.</p>
+      <p class="description-panneau-audit">Détail complet, virement retour par virement retour sur les 12 prochains mois, du calcul qui produit la recommandation ci-dessus — pratique pour vérifier "à la main" un montant qui paraîtrait surprenant.</p>
       <div class="scroll-horizontal">
         <table class="tableau-simulation-vault">
           <thead>
@@ -1122,6 +1221,7 @@
               <th>Δ Retours</th>
               <th>= Solde projeté</th>
               <th>Écart vs marge</th>
+              <th>Échéances</th>
             </tr>
           </thead>
           <tbody id="corps-tableau-simulation-vault"></tbody>
@@ -1403,7 +1503,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.18 — 24/09/2026';
+const VERSION_APP = 'v0.19 — 24/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -1877,10 +1977,13 @@ async function rafraichirPlanVault() {
   }
 }
 
-// Panneau d'audit TEMPORAIRE (voir backlog) : une ligne par virement retour
+// Panneau d'audit (conservé de façon permanente, masquable via le toggle —
+// voir basculerPanneauAudit ci-dessous) : une ligne par virement retour
 // simulé sur les 12 mois, exactement le détail utilisé en interne pour
 // produire la recommandation — la ligne qui la détermine (le "pire cas") est
 // mise en rouge/gras, pour que Charles puisse la repérer immédiatement.
+// Chaque ligne porte aussi, dans la dernière colonne, la même sous-liste
+// pliable des échéances incluses que pour "Virements à prévoir".
 function remplirTableauSimulationVault(detail) {
   const carte = document.getElementById('carte-simulation-vault');
   if (!carte) return; // panneau retiré du HTML : rien à faire
@@ -1907,9 +2010,51 @@ function remplirTableauSimulationVault(detail) {
       '<td>' + formaterMontant(ligne.delta_retour) + '</td>' +
       '<td>' + formaterMontant(ligne.solde_projete) + '</td>' +
       '<td>' + formaterMontant(ligne.excedent) + '</td>';
+
+    const celluleEcheances = document.createElement('td');
+    celluleEcheances.className = 'cellule-echeances';
+    if (ligne.echeances && ligne.echeances.length > 0) {
+      const details = document.createElement('details');
+      details.className = 'details-simulation';
+
+      const resume = document.createElement('summary');
+      resume.textContent = ligne.echeances.length + ' échéance' + (ligne.echeances.length > 1 ? 's' : '');
+      details.appendChild(resume);
+
+      const liste = document.createElement('ul');
+      ligne.echeances.forEach(function (echeance) {
+        const li = document.createElement('li');
+        li.innerHTML = '<span>' + echapper(echeance.nom_crediteur) + '</span><span>' + formaterMontant(echeance.montant, echeance.devise) + '</span>';
+        liste.appendChild(li);
+      });
+      details.appendChild(liste);
+      celluleEcheances.appendChild(details);
+    } else {
+      celluleEcheances.textContent = '—';
+    }
+    tr.appendChild(celluleEcheances);
+
     corps.appendChild(tr);
   });
 }
+
+// Affiche/masque le panneau d'audit (case du toggle) et retient le choix de
+// Charles dans le navigateur (localStorage) pour ne pas avoir à le rouvrir
+// à chaque visite — best-effort : si le stockage est indisponible
+// (navigation privée...), le panneau reste simplement masqué par défaut.
+function basculerPanneauAudit() {
+  const visible = document.getElementById('case-afficher-audit').checked;
+  document.getElementById('carte-simulation-vault').style.display = visible ? '' : 'none';
+  try { localStorage.setItem('audit_vault_visible', visible ? '1' : '0'); } catch (erreur) { /* stockage indisponible : pas bloquant */ }
+}
+
+function initialiserPanneauAudit() {
+  let visible = false; // masqué par défaut : c'est un détail technique, pas l'essentiel
+  try { visible = localStorage.getItem('audit_vault_visible') === '1'; } catch (erreur) { /* stockage indisponible : reste masqué */ }
+  document.getElementById('case-afficher-audit').checked = visible;
+  document.getElementById('carte-simulation-vault').style.display = visible ? '' : 'none';
+}
+initialiserPanneauAudit();
 
 function remplirBandeauRecommandation(recommandation) {
   const bandeau = document.getElementById('bandeau-recommandation-vault');
