@@ -379,6 +379,35 @@
     font-weight: 700;
   }
 
+  /* Compléments ponctuels (échéances connues, v0.22) sous le virement
+     automatique de base, dans l'encart bleu : une petite pastille par mois. */
+  .complements-hero { margin-top: 16px; }
+  .complements-hero .titre-complements { font-size: 13px; font-weight: 700; opacity: 0.9; margin-bottom: 8px; }
+  .complements-hero .liste-complements { display: flex; flex-wrap: wrap; gap: 8px; }
+  .complements-hero .pastille-complement {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Petite étiquette "ponctuel" pour repérer les échéances connues dans les
+     listes de virements et le détail par prélèvement. */
+  .etiquette-ponctuel {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--avertissement);
+    background: #fdefe0;
+    border-radius: 999px;
+    padding: 1px 8px;
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+  .note-provision { font-size: 12px; color: var(--texte-attenue); font-weight: 600; margin-left: 4px; }
+
   .carte-stat .etiquette {
     color: var(--texte-attenue);
     font-size: 13.5px;
@@ -1242,9 +1271,19 @@
 
     <div class="grille-tableau-bord">
       <div class="carte carte-hero">
-        <div class="etiquette">Virement d'alimentation mensuel à programmer</div>
+        <div class="etiquette">Virement automatique mensuel (base récurrente)</div>
         <div class="montant" id="provision-totale">—</div>
         <div class="detail-secondaire" id="provision-totale-detail">Calcul en cours…</div>
+        <!-- Compléments ponctuels des échéances connues (v0.22), à ajouter
+             à la main au virement automatique les mois concernés. -->
+        <div class="complements-hero" id="complements-hero" style="display:none;">
+          <div class="titre-complements">+ Compléments ponctuels à ajouter (échéances connues)</div>
+          <div class="liste-complements" id="liste-complements-hero"></div>
+        </div>
+        <!-- Échéance connue payée avant la prochaine alimentation : aucune
+             alimentation ne peut la couvrir, c'est la recommandation
+             "Ajouter X € au vault" qui prend le relais. -->
+        <div class="detail-secondaire" id="non-couvertes-hero" style="display:none;"></div>
         <div class="total-annuel-hero" id="provision-totale-annuelle"></div>
       </div>
       <div class="carte carte-stat">
@@ -1276,7 +1315,7 @@
         <div class="mini-stat">
           <div class="etiquette">Solde théorique (cible)</div>
           <div class="valeur" id="vault-solde-theorique">—</div>
-          <p class="champ aide">Si tous les virements en retard étaient faits, en respectant la marge de sécurité sur 12 mois.</p>
+          <p class="champ aide">Si tous les virements en retard étaient faits, en respectant la marge de sécurité sur les 12 prochains mois.</p>
         </div>
         <div class="mini-stat">
           <div class="etiquette">Marge de sécurité</div>
@@ -1350,11 +1389,11 @@
       </div>
 
       <div class="sous-titre-liste">Commun → Vault (alimentation)</div>
-      <p class="etat-vide" id="etat-vide-alimentation" style="display:none;">Rien à signaler sur les 2 prochains mois.</p>
+      <p class="etat-vide" id="etat-vide-alimentation" style="display:none;">Rien à signaler sur les 6 prochains mois.</p>
       <div class="liste-mouvements-vault" id="liste-alimentation"></div>
 
       <div class="sous-titre-liste">Vault → Commun (retours groupés)</div>
-      <p class="etat-vide" id="etat-vide-retour" style="display:none;">Aucun virement retour à prévoir sur les 2 prochains mois.</p>
+      <p class="etat-vide" id="etat-vide-retour" style="display:none;">Aucun virement retour à prévoir sur les 6 prochains mois.</p>
       <div class="liste-mouvements-vault" id="liste-virements-retour"></div>
     </div>
 
@@ -1514,6 +1553,18 @@
           </label>
         </div>
 
+        <!-- v0.22 — Début du provisionnement : chaque échéance de la liste
+             est répartie à parts égales sur les virements d'alimentation
+             situés après cette date et au plus tard le jour de l'échéance.
+             Date du jour par défaut à la création ; conservée ensuite, pour
+             que le calendrier des compléments ne change pas à chaque
+             modification de la ligne. Stockée dans la colonne date_debut. -->
+        <div class="champ">
+          <label for="champ-debut-provision">Début du provisionnement</label>
+          <input type="date" id="champ-debut-provision">
+          <p class="champ aide">Chaque échéance est répartie à parts égales sur les virements d'alimentation situés entre cette date et le jour de l'échéance, en plus du virement automatique de base.</p>
+        </div>
+
         <!-- Générateur : remplit la liste de dates ci-dessous automatiquement,
              pour une série régulière espacée d'un nombre de mois choisi. La
              liste reste ensuite modifiable à la main (ajout, retrait, ou
@@ -1616,7 +1667,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.21 — 24/09/2026';
+const VERSION_APP = 'v0.22 — 25/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -2057,11 +2108,41 @@ async function rafraichirTableauDeBord() {
     const donnees = await appelerAPI('calculerProvisionMensuelle');
     dernierDetailProvisions = donnees.detail || [];
 
-    document.getElementById('provision-totale').textContent = formaterMontant(donnees.provision_mensuelle_totale);
+    // v0.22 : l'encart distingue la base récurrente (lignes classiques,
+    // identique chaque mois = le virement automatique) des compléments
+    // ponctuels des échéances connues (variables, à ajouter à la main).
+    const base = donnees.provision_base_mensuelle !== undefined ? donnees.provision_base_mensuelle : donnees.provision_mensuelle_totale;
+    const nbClassiques = (donnees.detail || []).filter(function (l) { return l.mode === 'classique'; }).length;
+    document.getElementById('provision-totale').textContent = formaterMontant(base);
     document.getElementById('provision-totale-detail').textContent =
-      donnees.nombre_lignes_actives + ' prélèvement(s) actif(s) pris en compte, un douzième provisionné chaque mois.';
+      nbClassiques + ' prélèvement(s) récurrent(s), lissé(s) à parts égales sur chaque mois.';
+
+    const complements = donnees.complements_a_venir || [];
+    const blocComplements = document.getElementById('complements-hero');
+    const listeComplements = document.getElementById('liste-complements-hero');
+    listeComplements.innerHTML = '';
+    blocComplements.style.display = complements.length ? '' : 'none';
+    complements.forEach(function (complement) {
+      const pastille = document.createElement('span');
+      pastille.className = 'pastille-complement';
+      pastille.textContent = formaterDateAffichage(complement.date) + ' : + ' + formaterMontant(complement.montant);
+      pastille.title = complement.detail.map(function (d) {
+        return d.nom_crediteur + ' (échéance du ' + formaterDateAffichage(d.date_echeance) + ') : ' + formaterMontant(d.montant);
+      }).join('\n');
+      listeComplements.appendChild(pastille);
+    });
+
+    const nonCouvertes = donnees.echeances_non_couvertes || [];
+    const blocNonCouvertes = document.getElementById('non-couvertes-hero');
+    blocNonCouvertes.style.display = nonCouvertes.length ? '' : 'none';
+    blocNonCouvertes.textContent = nonCouvertes.length
+      ? '⚠️ Trop proche(s) pour être étalée(s) sur une alimentation : ' + nonCouvertes.map(function (e) {
+          return e.nom_crediteur + ' (' + formaterDateAffichage(e.date) + ', ' + formaterMontant(e.montant) + ')';
+        }).join(', ') + ' — à couvrir par un ajout direct au vault (voir la recommandation).'
+      : '';
+
     document.getElementById('provision-totale-annuelle').textContent =
-      'Soit ' + formaterMontant(donnees.provision_mensuelle_totale * 12) + ' sur l\'année';
+      'Soit ' + formaterMontant(donnees.total_12_mois !== undefined ? donnees.total_12_mois : base * 12) + ' sur les 12 prochains virements';
     document.getElementById('nombre-actifs').textContent = donnees.nombre_lignes_actives;
 
     remplirTableauDetail(dernierDetailProvisions);
@@ -2088,12 +2169,18 @@ function remplirTableauDetail(detail) {
     categorie: function (l) { return l.categorie || ''; },
     date: function (l) { return cleTriDate(obtenirPrelevementParId(l.id)); },
     mode: function (l) { return l.mode || ''; },
-    provision: function (l) { return l.provision_mensuelle; }
+    provision: function (l) { return valeurProvisionAffichee(l); }
   }, 'provision', -1); // tri par défaut : provision décroissante
 
   detailTrie.forEach(function (ligne) {
     const prelevementLie = obtenirPrelevementParId(ligne.id);
-    const montantAffiche = vueMontant === 'annuel' ? ligne.provision_mensuelle * 12 : ligne.provision_mensuelle;
+    const montantAffiche = valeurProvisionAffichee(ligne);
+    // Échéance connue, vue mensuelle : le montant est le complément de la
+    // PROCHAINE alimentation seulement (il varie d'un mois à l'autre) — on
+    // précise sa date pour éviter de le confondre avec un montant fixe.
+    const note = ligne.mode === 'echeance_connue' && vueMontant !== 'annuel' && ligne.date_provision
+      ? '<span class="note-provision" title="Complément prévu au virement du ' + formaterDateAffichage(ligne.date_provision) + ' (varie selon le mois — voir l\'encart bleu)">au ' + formaterJourMois(ligne.date_provision) + '</span>'
+      : '';
 
     const tr = document.createElement('tr');
     tr.innerHTML =
@@ -2101,11 +2188,22 @@ function remplirTableauDetail(detail) {
       '<td>' + echapper(ligne.categorie || '—') + '</td>' +
       '<td>' + formaterColonneDate(prelevementLie) + '</td>' +
       '<td>' + badgeMode(ligne.mode) + '</td>' +
-      '<td><strong>' + formaterMontant(montantAffiche) + '</strong></td>';
+      '<td><strong>' + formaterMontant(montantAffiche) + '</strong>' + note + '</td>';
     corps.appendChild(tr);
   });
 
   mettreAJourFlechesTri('tableau-detail', etatTriDetail);
+}
+
+// Provision affichée pour une ligne du détail, selon la bascule Mensuel/Annuel.
+// Annuel : total réellement provisionné sur les 12 prochaines alimentations
+// (provision_12_mois, calculé par le backend) — et non plus "mensuel × 12",
+// qui n'a aucun sens pour une échéance connue (v0.22).
+function valeurProvisionAffichee(ligne) {
+  if (vueMontant === 'annuel') {
+    return ligne.provision_12_mois !== undefined ? ligne.provision_12_mois : ligne.provision_mensuelle * 12;
+  }
+  return ligne.provision_mensuelle;
 }
 
 function trierDetail(colonne) {
@@ -2126,10 +2224,10 @@ function remplirRepartitionCategories(detail) {
   const totauxParCategorie = {};
   detail.forEach(function (ligne) {
     const categorie = ligne.categorie || 'Autre';
-    totauxParCategorie[categorie] = (totauxParCategorie[categorie] || 0) + ligne.provision_mensuelle;
+    totauxParCategorie[categorie] = (totauxParCategorie[categorie] || 0) + valeurProvisionAffichee(ligne);
   });
 
-  const facteur = vueMontant === 'annuel' ? 12 : 1;
+  const facteur = 1; // la bascule Mensuel/Annuel est déjà appliquée par valeurProvisionAffichee
 
   Object.keys(totauxParCategorie)
     .sort(function (a, b) { return totauxParCategorie[b] - totauxParCategorie[a]; })
@@ -2168,7 +2266,7 @@ async function rafraichirPlanVault() {
       champMarge.value = donnees.marge_securite;
     }
 
-    remplirBandeauRecommandation(donnees.recommandation);
+    remplirBandeauRecommandation(donnees.recommandation, donnees.horizon_calcul);
     remplirListeMouvements('liste-alimentation', 'etat-vide-alimentation', donnees.alimentation, 'alimentation_vault');
     remplirListeMouvements('liste-virements-retour', 'etat-vide-retour', donnees.virements_retour, 'retour_vers_compte');
     remplirTableauSimulationVault(donnees.detail_simulation_vault || []);
@@ -2258,7 +2356,7 @@ function initialiserPanneauAudit() {
 }
 initialiserPanneauAudit();
 
-function remplirBandeauRecommandation(recommandation) {
+function remplirBandeauRecommandation(recommandation, horizonCalcul) {
   const bandeau = document.getElementById('bandeau-recommandation-vault');
   bandeau.className = 'bandeau-recommandation';
 
@@ -2269,9 +2367,12 @@ function remplirBandeauRecommandation(recommandation) {
 
   bandeau.style.display = 'flex';
   bandeau.classList.add(recommandation.type);
+  // Horizon de 12 mois glissants, étendu par le backend jusqu'à la dernière
+  // échéance connue quand elle tombe plus loin (v0.22).
+  const periode = horizonCalcul ? 'd\'ici au ' + formaterDateAffichage(horizonCalcul) : 'sur les 12 prochains mois';
   bandeau.textContent = recommandation.type === 'complement'
-    ? '⚠️ Ajouter ' + formaterMontant(recommandation.montant) + ' au vault pour respecter la marge de sécurité sur les 12 prochains mois.'
-    : '💡 Tu peux retirer ' + formaterMontant(recommandation.montant) + ' du vault sans risque sur les 12 prochains mois : cet argent est immobilisé pour rien.';
+    ? '⚠️ Ajouter ' + formaterMontant(recommandation.montant) + ' au vault pour respecter la marge de sécurité ' + periode + '.'
+    : '💡 Tu peux retirer ' + formaterMontant(recommandation.montant) + ' du vault sans risque ' + periode + ' : cet argent est immobilisé pour rien.';
 }
 
 // Remplit une des deux listes (alimentation ou virements retour) — les deux
@@ -2325,6 +2426,15 @@ function creerCarteMouvement(mouvement, type) {
   spanDate.textContent = formaterDateAffichage(date) + (estRetour ? ' · ' + mouvement.nombre_echeances + ' échéance(s)' : '');
   entete.appendChild(spanDate);
 
+  // Repère les virements liés à une échéance connue (v0.22) : complément
+  // ponctuel dans une alimentation, ou échéance ponctuelle dans un retour.
+  if ((!estRetour && mouvement.complement > 0) || (estRetour && mouvement.contient_ponctuel)) {
+    const etiquette = document.createElement('span');
+    etiquette.className = 'etiquette-ponctuel';
+    etiquette.textContent = estRetour ? 'échéance ponctuelle' : 'dont + ' + formaterMontant(mouvement.complement) + ' ponctuel';
+    entete.appendChild(etiquette);
+  }
+
   const spanMontant = document.createElement('span');
   spanMontant.className = 'montant-mouvement';
   spanMontant.textContent = formaterMontant(montant);
@@ -2347,7 +2457,32 @@ function creerCarteMouvement(mouvement, type) {
     liste.className = 'detail-mouvement';
     mouvement.detail.forEach(function (echeance) {
       const li = document.createElement('li');
-      li.innerHTML = '<span>' + echapper(echeance.nom_crediteur) + '</span><span>' + formaterMontant(echeance.montant, echeance.devise) + ' · ' + formaterDateAffichage(echeance.date) + '</span>';
+      li.innerHTML = '<span>' + echapper(echeance.nom_crediteur) + (echeance.ponctuel ? '<span class="etiquette-ponctuel">ponctuel</span>' : '') + '</span><span>' + formaterMontant(echeance.montant, echeance.devise) + ' · ' + formaterDateAffichage(echeance.date) + '</span>';
+      liste.appendChild(li);
+    });
+    details.appendChild(liste);
+
+    carte.appendChild(details);
+  }
+
+  // Alimentation avec compléments ponctuels (v0.22) : même sous-liste
+  // pliable, détaillant la base récurrente et chaque complément.
+  if (!estRetour && mouvement.detail && mouvement.detail.length > 0) {
+    const details = document.createElement('details');
+    details.className = 'details-mouvement';
+
+    const resume = document.createElement('summary');
+    resume.textContent = 'Détail (base + ' + mouvement.detail.length + ' complément' + (mouvement.detail.length > 1 ? 's' : '') + ')';
+    details.appendChild(resume);
+
+    const liste = document.createElement('ul');
+    liste.className = 'detail-mouvement';
+    const liBase = document.createElement('li');
+    liBase.innerHTML = '<span>Base récurrente (prélèvements classiques)</span><span>' + formaterMontant(mouvement.base) + '</span>';
+    liste.appendChild(liBase);
+    mouvement.detail.forEach(function (part) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span>' + echapper(part.nom_crediteur) + ' <span class="date-echeance-simulation">(échéance du ' + formaterDateAffichage(part.date_echeance) + ')</span></span><span>+ ' + formaterMontant(part.montant) + '</span>';
       liste.appendChild(li);
     });
     details.appendChild(liste);
@@ -2358,10 +2493,19 @@ function creerCarteMouvement(mouvement, type) {
   return carte;
 }
 
+// Commentaire enregistré dans Log_Provisions pour une alimentation cochée :
+// précise la part de base et chaque complément ponctuel (v0.22), pour que
+// le journal reste lisible directement dans la Sheet.
+function commentaireAlimentation(mouvement) {
+  if (!mouvement.detail || mouvement.detail.length === 0) return 'Alimentation mensuelle';
+  return 'Alimentation mensuelle (base ' + mouvement.base + ' + compléments : ' +
+    mouvement.detail.map(function (p) { return p.nom_crediteur + ' éch. ' + formaterDateAffichage(p.date_echeance) + ' ' + p.montant; }).join(', ') + ')';
+}
+
 async function basculerMouvementVault(type, date, montant, mouvement, fait, elementEntete) {
   const commentaire = type === 'retour_vers_compte' && mouvement.detail
     ? mouvement.detail.map(function (e) { return e.nom_crediteur; }).join(', ')
-    : (type === 'alimentation_vault' ? 'Alimentation mensuelle' : '');
+    : (type === 'alimentation_vault' ? commentaireAlimentation(mouvement) : '');
 
   try {
     await appelerAPI('marquerMouvementVault', { type: type, date: date, montant: montant, commentaire: commentaire, fait: fait });
@@ -2676,7 +2820,9 @@ function ouvrirModaleAjout() {
   changerModeFormulaire('classique');
 
   // Un champ de date vide, prêt à l'emploi si l'utilisateur bascule ensuite
-  // vers le mode "échéance connue".
+  // vers le mode "échéance connue" — avec un provisionnement qui démarre
+  // aujourd'hui.
+  document.getElementById('champ-debut-provision').value = formaterDateISO(new Date());
   viderListeDatesManuelles();
   ajouterChampDate();
 
@@ -2730,9 +2876,16 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
     basculerChampFinDeMois(prelevement.fin_de_mois && prelevement.prochaine_echeance ? prelevement.prochaine_echeance.slice(0, 7) : '');
     document.getElementById('champ-montant-identique').checked = true;
     basculerMontantIdentique();
+    document.getElementById('champ-debut-provision').value = formaterDateISO(new Date());
     ajouterChampDate(); // liste prête si l'utilisateur bascule vers "Échéance connue"
   } else {
     document.getElementById('champ-montant-echeance').value = prelevement.montant_reference || '';
+    // Début du provisionnement : conservé tel quel en modification (repli
+    // sur date_maj pour les lignes créées avant la v0.22, comme le backend) ;
+    // remis à aujourd'hui pour une duplication, qui crée une nouvelle ligne.
+    document.getElementById('champ-debut-provision').value = idEnEdition
+      ? (prelevement.date_debut || prelevement.date_maj || formaterDateISO(new Date()))
+      : formaterDateISO(new Date());
     document.getElementById('champ-serie-fin-mois').checked = false; // case du générateur, jamais persistée (elle ne sert qu'à la génération)
 
     // On reconstruit la liste de dates éditable à partir de ce qui est
@@ -2990,6 +3143,9 @@ async function soumettreFormulaire(evenement) {
       afficherErreur('Renseigne au moins une date d\'échéance (ou génère une série régulière ci-dessus).');
       return;
     }
+
+    // Début du provisionnement (v0.22), stocké dans date_debut.
+    donnees.date_debut = document.getElementById('champ-debut-provision').value || formaterDateISO(new Date());
 
     const datesSaisies = paires.map(function (p) { return p.date; });
     donnees.dates_echeances = datesSaisies.join(';');
