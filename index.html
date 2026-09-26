@@ -406,6 +406,17 @@
     margin-left: 6px;
     white-space: nowrap;
   }
+  .etiquette-base {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--primaire-sombre);
+    background: #e8f3ff;
+    border-radius: 999px;
+    padding: 1px 8px;
+    margin-left: 6px;
+    white-space: nowrap;
+  }
   .note-provision { font-size: 12px; color: var(--texte-attenue); font-weight: 600; margin-left: 4px; }
 
   .carte-stat .etiquette {
@@ -1553,18 +1564,6 @@
           </label>
         </div>
 
-        <!-- v0.22 — Début du provisionnement : chaque échéance de la liste
-             est répartie à parts égales sur les virements d'alimentation
-             situés après cette date et au plus tard le jour de l'échéance.
-             Date du jour par défaut à la création ; conservée ensuite, pour
-             que le calendrier des compléments ne change pas à chaque
-             modification de la ligne. Stockée dans la colonne date_debut. -->
-        <div class="champ">
-          <label for="champ-debut-provision">Début du provisionnement</label>
-          <input type="date" id="champ-debut-provision">
-          <p class="champ aide">Chaque échéance est répartie à parts égales sur les virements d'alimentation situés entre cette date et le jour de l'échéance, en plus du virement automatique de base.</p>
-        </div>
-
         <!-- Générateur : remplit la liste de dates ci-dessous automatiquement,
              pour une série régulière espacée d'un nombre de mois choisi. La
              liste reste ensuite modifiable à la main (ajout, retrait, ou
@@ -1667,7 +1666,7 @@ const GOOGLE_CLIENT_ID = '1024422060408-73mc93nkt15o79vfrc7k537rhkbibr8d.apps.go
 // d'un coup d'œil que ce qui est déployé (Sheet + GitHub Pages) correspond
 // bien à la dernière version reçue. Le backend expose la même valeur dans
 // ses réponses ping/doGet (voir VERSION_APP dans Code.gs), pour recouper.
-const VERSION_APP = 'v0.22 — 25/09/2026';
+const VERSION_APP = 'v0.23 — 25/09/2026';
 
 // Devise par défaut de l'appli : celle du vault Revolut lui-même. Les
 // prélèvements en devise étrangère restent des cas particuliers à signaler.
@@ -2127,7 +2126,9 @@ async function rafraichirTableauDeBord() {
       pastille.className = 'pastille-complement';
       pastille.textContent = formaterDateAffichage(complement.date) + ' : + ' + formaterMontant(complement.montant);
       pastille.title = complement.detail.map(function (d) {
-        return d.nom_crediteur + ' (échéance du ' + formaterDateAffichage(d.date_echeance) + ') : ' + formaterMontant(d.montant);
+        return d.arrondi
+          ? 'Arrondi à l\'euro supérieur (gardé en réserve) : ' + formaterMontant(d.montant)
+          : d.nom_crediteur + ' (échéance du ' + formaterDateAffichage(d.date_echeance) + ') : ' + formaterMontant(d.montant);
       }).join('\n');
       listeComplements.appendChild(pastille);
     });
@@ -2267,7 +2268,16 @@ async function rafraichirPlanVault() {
     }
 
     remplirBandeauRecommandation(donnees.recommandation, donnees.horizon_calcul);
-    remplirListeMouvements('liste-alimentation', 'etat-vide-alimentation', donnees.alimentation, 'alimentation_vault');
+    // Commun → Vault (v0.23) : lignes de base récurrente et lignes de
+    // compléments ponctuels intercalées par date (la base d'abord à date
+    // égale), chacune avec sa propre case à cocher.
+    const mouvementsAlimentation = (donnees.alimentation || []).map(function (m) { return Object.assign({ type: 'alimentation_vault' }, m); })
+      .concat((donnees.complements || []).map(function (m) { return Object.assign({ type: 'alimentation_complementaire' }, m); }))
+      .sort(function (a, b) {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return a.type === 'alimentation_vault' ? -1 : 1;
+      });
+    remplirListeMouvements('liste-alimentation', 'etat-vide-alimentation', mouvementsAlimentation, null);
     remplirListeMouvements('liste-virements-retour', 'etat-vide-retour', donnees.virements_retour, 'retour_vers_compte');
     remplirTableauSimulationVault(donnees.detail_simulation_vault || []);
 
@@ -2391,7 +2401,8 @@ function remplirListeMouvements(idConteneur, idEtatVide, mouvements, type) {
   etatVide.style.display = 'none';
 
   mouvements.forEach(function (mouvement) {
-    conteneur.appendChild(creerCarteMouvement(mouvement, type));
+    // "type" null : chaque mouvement porte le sien (liste Commun → Vault mixte).
+    conteneur.appendChild(creerCarteMouvement(mouvement, type || mouvement.type));
   });
 }
 
@@ -2426,12 +2437,19 @@ function creerCarteMouvement(mouvement, type) {
   spanDate.textContent = formaterDateAffichage(date) + (estRetour ? ' · ' + mouvement.nombre_echeances + ' échéance(s)' : '');
   entete.appendChild(spanDate);
 
-  // Repère les virements liés à une échéance connue (v0.22) : complément
-  // ponctuel dans une alimentation, ou échéance ponctuelle dans un retour.
-  if ((!estRetour && mouvement.complement > 0) || (estRetour && mouvement.contient_ponctuel)) {
+  // Étiquettes (v0.23) : "Virement automatique" pour la base récurrente,
+  // "Complément ponctuel" pour les compléments des échéances connues,
+  // "échéance ponctuelle" pour un retour qui en couvre une.
+  const estComplement = type === 'alimentation_complementaire';
+  if (type === 'alimentation_vault') {
+    const etiquette = document.createElement('span');
+    etiquette.className = 'etiquette-base';
+    etiquette.textContent = 'Virement automatique';
+    entete.appendChild(etiquette);
+  } else if (estComplement || (estRetour && mouvement.contient_ponctuel)) {
     const etiquette = document.createElement('span');
     etiquette.className = 'etiquette-ponctuel';
-    etiquette.textContent = estRetour ? 'échéance ponctuelle' : 'dont + ' + formaterMontant(mouvement.complement) + ' ponctuel';
+    etiquette.textContent = estRetour ? 'échéance ponctuelle' : 'Complément ponctuel';
     entete.appendChild(etiquette);
   }
 
@@ -2465,24 +2483,25 @@ function creerCarteMouvement(mouvement, type) {
     carte.appendChild(details);
   }
 
-  // Alimentation avec compléments ponctuels (v0.22) : même sous-liste
-  // pliable, détaillant la base récurrente et chaque complément.
-  if (!estRetour && mouvement.detail && mouvement.detail.length > 0) {
+  // Complément ponctuel (v0.23) : sous-liste pliable des échéances qui
+  // concourent au montant — créditeur, date d'échéance, part du montant.
+  if (estComplement && mouvement.detail && mouvement.detail.length > 0) {
     const details = document.createElement('details');
     details.className = 'details-mouvement';
 
+    const nbEcheances = mouvement.detail.filter(function (p) { return !p.arrondi; }).length;
     const resume = document.createElement('summary');
-    resume.textContent = 'Détail (base + ' + mouvement.detail.length + ' complément' + (mouvement.detail.length > 1 ? 's' : '') + ')';
+    resume.textContent = 'Détail (' + nbEcheances + ' échéance' + (nbEcheances > 1 ? 's' : '') + ')';
     details.appendChild(resume);
 
     const liste = document.createElement('ul');
     liste.className = 'detail-mouvement';
-    const liBase = document.createElement('li');
-    liBase.innerHTML = '<span>Base récurrente (prélèvements classiques)</span><span>' + formaterMontant(mouvement.base) + '</span>';
-    liste.appendChild(liBase);
     mouvement.detail.forEach(function (part) {
       const li = document.createElement('li');
-      li.innerHTML = '<span>' + echapper(part.nom_crediteur) + ' <span class="date-echeance-simulation">(échéance du ' + formaterDateAffichage(part.date_echeance) + ')</span></span><span>+ ' + formaterMontant(part.montant) + '</span>';
+      const libelle = part.arrondi
+        ? '<span class="date-echeance-simulation">' + echapper(part.nom_crediteur) + ' (gardé en réserve)</span>'
+        : echapper(part.nom_crediteur) + ' <span class="date-echeance-simulation">(échéance du ' + formaterDateAffichage(part.date_echeance) + ')</span>';
+      li.innerHTML = '<span>' + libelle + '</span><span>' + formaterMontant(part.montant) + '</span>';
       liste.appendChild(li);
     });
     details.appendChild(liste);
@@ -2493,19 +2512,20 @@ function creerCarteMouvement(mouvement, type) {
   return carte;
 }
 
-// Commentaire enregistré dans Log_Provisions pour une alimentation cochée :
-// précise la part de base et chaque complément ponctuel (v0.22), pour que
-// le journal reste lisible directement dans la Sheet.
-function commentaireAlimentation(mouvement) {
-  if (!mouvement.detail || mouvement.detail.length === 0) return 'Alimentation mensuelle';
-  return 'Alimentation mensuelle (base ' + mouvement.base + ' + compléments : ' +
-    mouvement.detail.map(function (p) { return p.nom_crediteur + ' éch. ' + formaterDateAffichage(p.date_echeance) + ' ' + p.montant; }).join(', ') + ')';
+// Commentaire enregistré dans Log_Provisions pour un complément ponctuel
+// coché (v0.23) : échéances couvertes et part de chacune, pour que le
+// journal reste lisible directement dans la Sheet.
+function commentaireComplement(mouvement) {
+  return 'Complément ponctuel : ' + (mouvement.detail || []).map(function (p) {
+    return p.arrondi ? 'arrondi ' + p.montant : p.nom_crediteur + ' éch. ' + formaterDateAffichage(p.date_echeance) + ' ' + p.montant;
+  }).join(', ');
 }
 
 async function basculerMouvementVault(type, date, montant, mouvement, fait, elementEntete) {
   const commentaire = type === 'retour_vers_compte' && mouvement.detail
     ? mouvement.detail.map(function (e) { return e.nom_crediteur; }).join(', ')
-    : (type === 'alimentation_vault' ? commentaireAlimentation(mouvement) : '');
+    : (type === 'alimentation_vault' ? 'Alimentation mensuelle (virement automatique)'
+      : (type === 'alimentation_complementaire' ? commentaireComplement(mouvement) : ''));
 
   try {
     await appelerAPI('marquerMouvementVault', { type: type, date: date, montant: montant, commentaire: commentaire, fait: fait });
@@ -2820,9 +2840,7 @@ function ouvrirModaleAjout() {
   changerModeFormulaire('classique');
 
   // Un champ de date vide, prêt à l'emploi si l'utilisateur bascule ensuite
-  // vers le mode "échéance connue" — avec un provisionnement qui démarre
-  // aujourd'hui.
-  document.getElementById('champ-debut-provision').value = formaterDateISO(new Date());
+  // vers le mode "échéance connue".
   viderListeDatesManuelles();
   ajouterChampDate();
 
@@ -2876,16 +2894,9 @@ function remplirFormulaireDepuisPrelevement(prelevement, nomAffiche) {
     basculerChampFinDeMois(prelevement.fin_de_mois && prelevement.prochaine_echeance ? prelevement.prochaine_echeance.slice(0, 7) : '');
     document.getElementById('champ-montant-identique').checked = true;
     basculerMontantIdentique();
-    document.getElementById('champ-debut-provision').value = formaterDateISO(new Date());
     ajouterChampDate(); // liste prête si l'utilisateur bascule vers "Échéance connue"
   } else {
     document.getElementById('champ-montant-echeance').value = prelevement.montant_reference || '';
-    // Début du provisionnement : conservé tel quel en modification (repli
-    // sur date_maj pour les lignes créées avant la v0.22, comme le backend) ;
-    // remis à aujourd'hui pour une duplication, qui crée une nouvelle ligne.
-    document.getElementById('champ-debut-provision').value = idEnEdition
-      ? (prelevement.date_debut || prelevement.date_maj || formaterDateISO(new Date()))
-      : formaterDateISO(new Date());
     document.getElementById('champ-serie-fin-mois').checked = false; // case du générateur, jamais persistée (elle ne sert qu'à la génération)
 
     // On reconstruit la liste de dates éditable à partir de ce qui est
@@ -3144,9 +3155,8 @@ async function soumettreFormulaire(evenement) {
       return;
     }
 
-    // Début du provisionnement (v0.22), stocké dans date_debut.
-    donnees.date_debut = document.getElementById('champ-debut-provision').value || formaterDateISO(new Date());
-
+    // v0.23 : plus de "début du provisionnement" — les compléments sont
+    // recalculés à partir d'aujourd'hui et de la réserve déjà constituée.
     const datesSaisies = paires.map(function (p) { return p.date; });
     donnees.dates_echeances = datesSaisies.join(';');
     donnees.date_premiere_echeance = datesSaisies[0];
